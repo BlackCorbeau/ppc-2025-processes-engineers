@@ -1,12 +1,9 @@
 #include <gtest/gtest.h>
-#include <stb/stb_image.h>
 
 #include <algorithm>
 #include <array>
 #include <cstddef>
-#include <cstdint>
 #include <numeric>
-#include <stdexcept>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -23,7 +20,28 @@ namespace remizov_k_max_in_matrix_string {
 class RemizovKRunFuncMaxInMatrixString : public ppc::util::BaseRunFuncTests<InType, OutType, TestType> {
  public:
   static std::string PrintTestParam(const TestType &test_param) {
-    return std::to_string(std::get<0>(test_param)) + "_" + std::get<1>(test_param);
+    const auto& input_matrix = std::get<0>(test_param);
+    const auto& expected_output = std::get<1>(test_param);
+
+    std::string test_name = "matrix_" + std::to_string(input_matrix.size()) +
+                           "x" + (input_matrix.empty() ? "0" : std::to_string(input_matrix[0].size()));
+    if (!expected_output.empty()) {
+      test_name += "_maxes";
+      for (size_t i = 0; i < expected_output.size(); ++i) {
+        test_name += "_" + FormatNumber(expected_output[i]);
+      }
+    }
+
+    return test_name;
+  }
+
+ private:
+  static std::string FormatNumber(int num) {
+    if (num >= 0) {
+      return std::to_string(num);
+    } else {
+      return "neg" + std::to_string(-num);
+    }
   }
 
  protected:
