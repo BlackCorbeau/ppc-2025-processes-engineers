@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
-#include <vector>
 #include <iostream>
+#include <vector>
 
 #include "remizov_k_max_in_matrix_string/common/include/common.hpp"
 #include "remizov_k_max_in_matrix_string/mpi/include/ops_mpi.hpp"
@@ -15,11 +15,7 @@ class RemizovKRunPerfMaxInMatrixString : public ppc::util::BaseRunPerfTests<InTy
   OutType expected_output_{};
 
   void SetUp() override {
-    input_data_ = {
-      {1, 2, 3},
-      {4, 5, 6},
-      {7, 8, 9}
-    };
+    input_data_ = {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}};
 
     expected_output_ = {3, 6, 9};
   }
@@ -38,7 +34,8 @@ TEST_P(RemizovKRunPerfMaxInMatrixString, RunPerfModes) {
 }
 
 const auto kAllPerfTasks =
-    ppc::util::MakeAllPerfTasks<InType, RemizovKMaxInMatrixStringMPI, RemizovKMaxInMatrixStringSEQ>(PPC_SETTINGS_remizov_k_max_in_matrix_string);
+    ppc::util::MakeAllPerfTasks<InType, RemizovKMaxInMatrixStringMPI, RemizovKMaxInMatrixStringSEQ>(
+        PPC_SETTINGS_remizov_k_max_in_matrix_string);
 
 const auto kGtestValues = ppc::util::TupleToGTestValues(kAllPerfTasks);
 
