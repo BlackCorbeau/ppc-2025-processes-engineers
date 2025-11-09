@@ -1,10 +1,10 @@
 #include "remizov_k_max_in_matrix_string/seq/include/ops_seq.hpp"
 
-#include <numeric>
+#include <algorithm>
+#include <cstddef>
 #include <vector>
 
-#include "example_processes/common/include/common.hpp"
-#include "util/include/util.hpp"
+#include "remizov_k_max_in_matrix_string/common/include/common.hpp"
 
 namespace remizov_k_max_in_matrix_string {
 
@@ -23,22 +23,16 @@ bool RemizovKMaxInMatrixStringSEQ::ValidationImpl() {
     return false;
   }
 
-  size_t first_row_size = GetInput()[0].size();
+  const std::size_t first_row_size = GetInput()[0].size();
   if (first_row_size == 0) {
     return false;
   }
 
-  for (const auto &row : GetInput()) {
-    if (row.size() != first_row_size) {
-      return false;
-    }
-  }
-
-  return true;
+  return std::ranges::all_of(GetInput(), [first_row_size](const auto &row) { return row.size() == first_row_size; });
 }
 
 bool RemizovKMaxInMatrixStringSEQ::PreProcessingImpl() {
-  GetOutput().clear();  // Очищаем выходной вектор
+  GetOutput().clear();
   GetOutput().reserve(GetInput().size());
   return GetOutput().empty();
 }
@@ -46,7 +40,7 @@ bool RemizovKMaxInMatrixStringSEQ::PreProcessingImpl() {
 bool RemizovKMaxInMatrixStringSEQ::RunImpl() {
   for (const auto &row : GetInput()) {
     if (!row.empty()) {
-      int max_element = *std::max_element(row.begin(), row.end());
+      int max_element = *std::ranges::max_element(row);
       GetOutput().push_back(max_element);
     }
   }
@@ -59,7 +53,7 @@ bool RemizovKMaxInMatrixStringSEQ::PostProcessingImpl() {
     return false;
   }
 
-  for (size_t i = 0; i < GetOutput().size(); i++) {
+  for (std::size_t i = 0; i < GetOutput().size(); i++) {
     const auto &row = GetInput()[i];
     int found_max = GetOutput()[i];
 

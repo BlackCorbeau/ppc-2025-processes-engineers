@@ -1,20 +1,16 @@
 #include <gtest/gtest.h>
 #include <mpi.h>
 
-#include <algorithm>
 #include <array>
 #include <cstddef>
-#include <numeric>
 #include <string>
 #include <tuple>
-#include <utility>
 #include <vector>
 
 #include "remizov_k_max_in_matrix_string/common/include/common.hpp"
 #include "remizov_k_max_in_matrix_string/mpi/include/ops_mpi.hpp"
 #include "remizov_k_max_in_matrix_string/seq/include/ops_seq.hpp"
 #include "util/include/func_test_util.hpp"
-#include "util/include/util.hpp"
 
 namespace remizov_k_max_in_matrix_string {
 
@@ -40,9 +36,8 @@ class RemizovKRunFuncMaxInMatrixString : public ppc::util::BaseRunFuncTests<InTy
   static std::string FormatNumber(int num) {
     if (num >= 0) {
       return std::to_string(num);
-    } else {
-      return "neg" + std::to_string(-num);
     }
+    return "neg" + std::to_string(-num);
   }
 
  protected:
@@ -53,7 +48,7 @@ class RemizovKRunFuncMaxInMatrixString : public ppc::util::BaseRunFuncTests<InTy
   }
 
   bool CheckTestOutputData(OutType &output_data) final {
-    int world_rank;
+    int world_rank = 0;
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
 
     if (world_rank != 0) {
@@ -78,8 +73,8 @@ class RemizovKRunFuncMaxInMatrixString : public ppc::util::BaseRunFuncTests<InTy
   }
 
  private:
-  InType input_data_ = std::vector<std::vector<int>>();
-  OutType expected_output_ = std::vector<int>();
+  InType input_data_;
+  OutType expected_output_;
 };
 
 namespace {
