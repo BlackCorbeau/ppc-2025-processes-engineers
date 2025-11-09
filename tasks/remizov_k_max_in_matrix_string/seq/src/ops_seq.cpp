@@ -43,10 +43,15 @@ bool RemizovKMaxInMatrixStringSEQ::PreProcessingImpl() {
   return GetOutput().empty();
 }
 
-  if (counter != 0) {
-    GetOutput() /= counter;
+bool RemizovKMaxInMatrixStringSEQ::RunImpl() {
+  for (const auto& row : GetInput()) {
+     if (!row.empty()) {
+        int max_element = *std::max_element(row.begin(), row.end());
+        GetOutput().push_back(max_element);
+     }
   }
-  return GetOutput() > 0;
+
+  return !GetOutput().empty();
 }
 
 bool RemizovKMaxInMatrixStringSEQ::PostProcessingImpl() {
