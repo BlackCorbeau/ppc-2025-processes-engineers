@@ -1,8 +1,5 @@
 #include <gtest/gtest.h>
 
-#include <iostream>
-#include <vector>
-
 #include "remizov_k_max_in_matrix_string/common/include/common.hpp"
 #include "remizov_k_max_in_matrix_string/mpi/include/ops_mpi.hpp"
 #include "remizov_k_max_in_matrix_string/seq/include/ops_seq.hpp"
@@ -11,8 +8,8 @@
 namespace remizov_k_max_in_matrix_string {
 
 class RemizovKRunPerfMaxInMatrixString : public ppc::util::BaseRunPerfTests<InType, OutType> {
-  InType input_data_{};
-  OutType expected_output_{};
+  InType input_data_;
+  OutType expected_output_;
 
   void SetUp() override {
     input_data_ = {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}};
