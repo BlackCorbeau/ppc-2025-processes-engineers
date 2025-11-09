@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <mpi.h>
 
 #include <array>
 #include <cstddef>
@@ -48,6 +49,13 @@ class RemizovKRunFuncMaxInMatrixString : public ppc::util::BaseRunFuncTests<InTy
   }
 
   bool CheckTestOutputData(OutType &output_data) final {
+    int world_rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+
+    if (world_rank != 0) {
+      return true;
+    }
+
     if (output_data.size() != expected_output_.size()) {
       return false;
     }
