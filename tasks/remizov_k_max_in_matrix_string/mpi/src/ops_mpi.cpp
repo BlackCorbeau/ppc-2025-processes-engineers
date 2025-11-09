@@ -1,4 +1,5 @@
 #include "remizov_k_max_in_matrix_string/mpi/include/ops_mpi.hpp"
+#include "remizov_k_max_in_matrix_string/mpi/include/types_mpi.hpp"
 
 #include <mpi.h>
 
@@ -64,8 +65,9 @@ bool RemizovKMaxInMatrixStringMPI::RunImpl() {
     continuous_data.resize(static_cast<std::size_t>(total_rows) * static_cast<std::size_t>(row_size));
     for (int i = 0; i < total_rows; ++i) {
       for (int j = 0; j < row_size; ++j) {
-        continuous_data[static_cast<std::size_t>(i) * static_cast<std::size_t>(row_size) +
-                        static_cast<std::size_t>(j)] = GetInput()[i][j];
+        const std::size_t index = (static_cast<std::size_t>(i) * static_cast<std::size_t>(row_size)) +
+                                 static_cast<std::size_t>(j);
+        continuous_data[index] = GetInput()[i][j];
       }
     }
 
@@ -98,29 +100,31 @@ bool RemizovKMaxInMatrixStringMPI::RunImpl() {
   MPI_Bcast(temp_sendcounts.data(), world_size, MPI_INT, 0, MPI_COMM_WORLD);
   MPI_Bcast(temp_displs.data(), world_size, MPI_INT, 0, MPI_COMM_WORLD);
 
-  if (local_row_count > 0) {
-    std::vector<int> local_data(static_cast<std::size_t>(local_row_count) * static_cast<std::size_t>(row_size));
+  std::vector<int> local_data;
+  std::vector<int> local_maxes;
 
-    MPI_Scatterv(world_rank == 0 ? continuous_data.data() : nullptr, temp_sendcounts.data(), temp_displs.data(),
+  if (local_row_count > 0) {
+    local_data.resize(static_cast<std::size_t>(local_row_count) * static_cast<std::size_t>(row_size));
+
+    const int* sendbuf = (world_rank == 0) ? continuous_data.data() : nullptr;
+    MPI_Scatterv(sendbuf, temp_sendcounts.data(), temp_displs.data(),
                  MPI_INT, local_data.data(), local_row_count * row_size, MPI_INT, 0, MPI_COMM_WORLD);
 
-    std::vector<int> local_maxes(static_cast<std::size_t>(local_row_count));
+    local_maxes.resize(static_cast<std::size_t>(local_row_count));
     for (int i = 0; i < local_row_count; ++i) {
       int max_val = std::numeric_limits<int>::min();
       for (int j = 0; j < row_size; ++j) {
-        max_val = std::max(
-            local_data[static_cast<std::size_t>(i) * static_cast<std::size_t>(row_size) + static_cast<std::size_t>(j)],
-            max_val);
+        const std::size_t index = (static_cast<std::size_t>(i) * static_cast<std::size_t>(row_size)) +
+                                 static_cast<std::size_t>(j);
+        max_val = std::max(local_data[index], max_val);
       }
       local_maxes[static_cast<std::size_t>(i)] = max_val;
     }
-
-    MPI_Gatherv(local_maxes.data(), local_row_count, MPI_INT, world_rank == 0 ? GetOutput().data() : nullptr,
-                sendcounts.data(), displs.data(), MPI_INT, 0, MPI_COMM_WORLD);
-  } else {
-    MPI_Gatherv(nullptr, 0, MPI_INT, world_rank == 0 ? GetOutput().data() : nullptr, sendcounts.data(), displs.data(),
-                MPI_INT, 0, MPI_COMM_WORLD);
   }
+
+  int* recvbuf = (world_rank == 0) ? GetOutput().data() : nullptr;
+  MPI_Gatherv(local_row_count > 0 ? local_maxes.data() : nullptr, local_row_count, MPI_INT,
+              recvbuf, sendcounts.data(), displs.data(), MPI_INT, 0, MPI_COMM_WORLD);
 
   if (world_rank == 0) {
     return !GetOutput().empty();
