@@ -135,8 +135,18 @@ bool RemizovKMaxInMatrixStringMPI::RunImpl() {
 }
 
 bool RemizovKMaxInMatrixStringMPI::PostProcessingImpl() {
-  GetOutput() -= GetInput();
-  return GetOutput() > 0;
+  int world_rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+
+  if (world_rank == 0) {
+    for (size_t i = 0; i < GetOutput().size(); i++) {
+      if (GetOutput()[i] == std::numeric_limits<int>::min()) {
+        return false;
+      }
+    }
+  }
+
+  return true;
 }
 
 }  // namespace remizov_k_max_in_matrix_string
