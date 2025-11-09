@@ -55,8 +55,33 @@ bool RemizovKMaxInMatrixStringSEQ::RunImpl() {
 }
 
 bool RemizovKMaxInMatrixStringSEQ::PostProcessingImpl() {
-  GetOutput() -= GetInput();
-  return GetOutput() > 0;
+  if (GetOutput().size() != GetInput().size()) {
+    return false;
+  }
+
+  for (size_t i = 0; i < GetOutput().size(); i++) {
+    const auto& row = GetInput()[i];
+    int found_max = GetOutput()[i];
+
+    bool max_exists = false;
+    for (int value : row) {
+      if (value == found_max) {
+        max_exists = true;
+        break;
+      }
+    }
+
+    if (!max_exists) {
+      return false;
+    }
+    for (int value : row) {
+      if (value > found_max) {
+        return false;
+      }
+    }
+  }
+
+  return true;
 }
 
 }  // namespace remizov_k_max_in_matrix_string
