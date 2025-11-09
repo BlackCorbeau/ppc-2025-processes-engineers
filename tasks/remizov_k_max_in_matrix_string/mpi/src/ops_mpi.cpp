@@ -17,7 +17,15 @@ RemizovKMaxInMatrixStringMPI::RemizovKMaxInMatrixStringMPI(const InType &in) {
 }
 
 bool RemizovKMaxInMatrixStringMPI::ValidationImpl() {
-  return (GetInput() > 0) && (GetOutput() == 0);
+  if (GetInput().empty()) return false;
+  if (!GetOutput().empty()) return false;
+
+  size_t row_size = GetInput()[0].size();
+  for (const auto& row : GetInput()) {
+    if (row.size() != row_size) return false;
+  }
+
+  return true;
 }
 
 bool RemizovKMaxInMatrixStringMPI::PreProcessingImpl() {
