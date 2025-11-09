@@ -1,5 +1,4 @@
 #include "remizov_k_max_in_matrix_string/mpi/include/ops_mpi.hpp"
-#include "remizov_k_max_in_matrix_string/mpi/include/types_mpi.hpp"
 
 #include <mpi.h>
 
