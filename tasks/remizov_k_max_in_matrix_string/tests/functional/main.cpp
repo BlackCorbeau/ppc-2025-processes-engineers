@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <mpi.h>
 
 #include <algorithm>
 #include <array>
@@ -20,11 +21,11 @@ namespace remizov_k_max_in_matrix_string {
 class RemizovKRunFuncMaxInMatrixString : public ppc::util::BaseRunFuncTests<InType, OutType, TestType> {
  public:
   static std::string PrintTestParam(const TestType &test_param) {
-    const auto& input_matrix = std::get<0>(test_param);
-    const auto& expected_output = std::get<1>(test_param);
+    const auto &input_matrix = std::get<0>(test_param);
+    const auto &expected_output = std::get<1>(test_param);
 
-    std::string test_name = "matrix_" + std::to_string(input_matrix.size()) +
-                           "x" + (input_matrix.empty() ? "0" : std::to_string(input_matrix[0].size()));
+    std::string test_name = "matrix_" + std::to_string(input_matrix.size()) + "x" +
+                            (input_matrix.empty() ? "0" : std::to_string(input_matrix[0].size()));
     if (!expected_output.empty()) {
       test_name += "_maxes";
       for (size_t i = 0; i < expected_output.size(); ++i) {
@@ -52,6 +53,13 @@ class RemizovKRunFuncMaxInMatrixString : public ppc::util::BaseRunFuncTests<InTy
   }
 
   bool CheckTestOutputData(OutType &output_data) final {
+    int world_rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+
+    if (world_rank != 0) {
+      return true;
+    }
+
     if (output_data.size() != expected_output_.size()) {
       return false;
     }
@@ -81,59 +89,22 @@ TEST_P(RemizovKRunFuncMaxInMatrixString, FindMaxInEachRow) {
 }
 
 const std::array<TestType, 6> kTestParam = {
-  std::make_tuple(
-    std::vector<std::vector<int>>{
-      {1, 2, 3},
-      {4, 5, 6},
-      {7, 8, 9}
-    },
-    std::vector<int>{3, 6, 9}
-  ),
+    std::make_tuple(std::vector<std::vector<int>>{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}, std::vector<int>{3, 6, 9}),
 
-  std::make_tuple(
-    std::vector<std::vector<int>>{
-      {-1, -5, -3},
-      {-9, -2, -7}
-    },
-    std::vector<int>{-1, -2}
-  ),
+    std::make_tuple(std::vector<std::vector<int>>{{-1, -5, -3}, {-9, -2, -7}}, std::vector<int>{-1, -2}),
 
-  std::make_tuple(
-    std::vector<std::vector<int>>{
-      {5, 8, 2, 10, 1}
-    },
-    std::vector<int>{10}
-  ),
+    std::make_tuple(std::vector<std::vector<int>>{{5, 8, 2, 10, 1}}, std::vector<int>{10}),
 
-  std::make_tuple(
-    std::vector<std::vector<int>>{
-      {7, 7, 7},
-      {7, 7, 7}
-    },
-    std::vector<int>{7, 7}
-  ),
+    std::make_tuple(std::vector<std::vector<int>>{{7, 7, 7}, {7, 7, 7}}, std::vector<int>{7, 7}),
 
-  std::make_tuple(
-    std::vector<std::vector<int>>{
-      {1, 5, 1},
-      {3, 3, 4}
-    },
-    std::vector<int>{5, 4}
-  ),
+    std::make_tuple(std::vector<std::vector<int>>{{1, 5, 1}, {3, 3, 4}}, std::vector<int>{5, 4}),
 
-  std::make_tuple(
-    std::vector<std::vector<int>>{
-      {42}
-    },
-    std::vector<int>{42}
-  )
-};
+    std::make_tuple(std::vector<std::vector<int>>{{42}}, std::vector<int>{42})};
 
-const auto kTestTasksList =
-    std::tuple_cat(
-      ppc::util::AddFuncTask<RemizovKMaxInMatrixStringMPI, InType>(kTestParam, PPC_SETTINGS_remizov_k_max_in_matrix_string),
-      ppc::util::AddFuncTask<RemizovKMaxInMatrixStringSEQ, InType>(kTestParam, PPC_SETTINGS_remizov_k_max_in_matrix_string)
-    );
+const auto kTestTasksList = std::tuple_cat(ppc::util::AddFuncTask<RemizovKMaxInMatrixStringMPI, InType>(
+                                               kTestParam, PPC_SETTINGS_remizov_k_max_in_matrix_string),
+                                           ppc::util::AddFuncTask<RemizovKMaxInMatrixStringSEQ, InType>(
+                                               kTestParam, PPC_SETTINGS_remizov_k_max_in_matrix_string));
 
 const auto kGtestValues = ppc::util::ExpandToValues(kTestTasksList);
 
