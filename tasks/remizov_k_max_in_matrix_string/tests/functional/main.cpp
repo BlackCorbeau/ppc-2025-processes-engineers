@@ -52,7 +52,17 @@ class RemizovKRunFuncMaxInMatrixString : public ppc::util::BaseRunFuncTests<InTy
   }
 
   bool CheckTestOutputData(OutType &output_data) final {
-    return (input_data_ == output_data);
+    if (output_data.size() != expected_output_.size()) {
+      return false;
+    }
+
+    for (size_t i = 0; i < output_data.size(); ++i) {
+      if (output_data[i] != expected_output_[i]) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   InType GetTestInputData() final {
