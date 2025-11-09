@@ -130,14 +130,16 @@ const std::array<TestType, 6> kTestParam = {
 };
 
 const auto kTestTasksList =
-    std::tuple_cat(ppc::util::AddFuncTask<RemizovKMaxInMatrixStringMPI, InType>(kTestParam, PPC_SETTINGS_example_processes),
-                   ppc::util::AddFuncTask<RemizovKMaxInMatrixStringMPI, InType>(kTestParam, PPC_SETTINGS_example_processes));
+    std::tuple_cat(
+      ppc::util::AddFuncTask<RemizovKMaxInMatrixStringMPI, InType>(kTestParam, PPC_SETTINGS_remizov_k_max_in_matrix_string),
+      ppc::util::AddFuncTask<RemizovKMaxInMatrixStringSEQ, InType>(kTestParam, PPC_SETTINGS_remizov_k_max_in_matrix_string)
+    );
 
 const auto kGtestValues = ppc::util::ExpandToValues(kTestTasksList);
 
 const auto kPerfTestName = RemizovKRunFuncMaxInMatrixString::PrintFuncTestName<RemizovKRunFuncMaxInMatrixString>;
 
-INSTANTIATE_TEST_SUITE_P(PicMatrixTests, RemizovKRunFuncMaxInMatrixString, kGtestValues, kPerfTestName);
+INSTANTIATE_TEST_SUITE_P(MatrixMaxTests, RemizovKRunFuncMaxInMatrixString, kGtestValues, kPerfTestName);
 
 }  // namespace
 
