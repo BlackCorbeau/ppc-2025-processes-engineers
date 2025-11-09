@@ -76,11 +76,58 @@ class RemizovKRunFuncMaxInMatrixString : public ppc::util::BaseRunFuncTests<InTy
 
 namespace {
 
-TEST_P(RemizovKRunFuncMaxInMatrixString, MatmulFromPic) {
+TEST_P(RemizovKRunFuncMaxInMatrixString, FindMaxInEachRow) {
   ExecuteTest(GetParam());
 }
 
-const std::array<TestType, 3> kTestParam = {std::make_tuple(3, "3"), std::make_tuple(5, "5"), std::make_tuple(7, "7")};
+const std::array<TestType, 6> kTestParam = {
+  std::make_tuple(
+    std::vector<std::vector<int>>{
+      {1, 2, 3},
+      {4, 5, 6},
+      {7, 8, 9}
+    },
+    std::vector<int>{3, 6, 9}
+  ),
+
+  std::make_tuple(
+    std::vector<std::vector<int>>{
+      {-1, -5, -3},
+      {-9, -2, -7}
+    },
+    std::vector<int>{-1, -2}
+  ),
+
+  std::make_tuple(
+    std::vector<std::vector<int>>{
+      {5, 8, 2, 10, 1}
+    },
+    std::vector<int>{10}
+  ),
+
+  std::make_tuple(
+    std::vector<std::vector<int>>{
+      {7, 7, 7},
+      {7, 7, 7}
+    },
+    std::vector<int>{7, 7}
+  ),
+
+  std::make_tuple(
+    std::vector<std::vector<int>>{
+      {1, 5, 1},
+      {3, 3, 4}
+    },
+    std::vector<int>{5, 4}
+  ),
+
+  std::make_tuple(
+    std::vector<std::vector<int>>{
+      {42}
+    },
+    std::vector<int>{42}
+  )
+};
 
 const auto kTestTasksList =
     std::tuple_cat(ppc::util::AddFuncTask<RemizovKMaxInMatrixStringMPI, InType>(kTestParam, PPC_SETTINGS_example_processes),
