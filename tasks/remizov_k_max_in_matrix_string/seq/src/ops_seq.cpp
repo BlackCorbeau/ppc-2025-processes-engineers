@@ -15,31 +15,27 @@ RemizovKMaxInMatrixStringSEQ::RemizovKMaxInMatrixStringSEQ(const InType &in) {
 }
 
 bool RemizovKMaxInMatrixStringSEQ::ValidationImpl() {
-  return (GetInput() > 0) && (GetOutput() == 0);
-}
-
-bool RemizovKMaxInMatrixStringSEQ::PreProcessingImpl() {
-  GetOutput() = 2 * GetInput();
-  return GetOutput() > 0;
-}
-
-bool RemizovKMaxInMatrixStringSEQ::RunImpl() {
-  if (GetInput() == 0) {
+  if (GetInput().empty()) {
     return false;
   }
 
-  for (InType i = 0; i < GetInput(); i++) {
-    for (InType j = 0; j < GetInput(); j++) {
-      for (InType k = 0; k < GetInput(); k++) {
-        std::vector<InType> tmp(i + j + k, 1);
-        GetOutput() += std::accumulate(tmp.begin(), tmp.end(), 0);
-        GetOutput() -= i + j + k;
-      }
+  if (!GetOutput().empty()) {
+    return false;
+  }
+
+  size_t first_row_size = GetInput()[0].size();
+  if (first_row_size == 0) {
+    return false;
+  }
+
+  for (const auto& row : GetInput()) {
+    if (row.size() != first_row_size) {
+      return false;
     }
   }
 
-  const int num_threads = ppc::util::GetNumThreads();
-  GetOutput() *= num_threads;
+  return true;
+}
 
   int counter = 0;
   for (int i = 0; i < num_threads; i++) {
