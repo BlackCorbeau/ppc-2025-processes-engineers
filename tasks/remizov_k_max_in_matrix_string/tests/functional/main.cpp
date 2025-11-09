@@ -11,7 +11,6 @@
 #include "remizov_k_max_in_matrix_string/mpi/include/ops_mpi.hpp"
 #include "remizov_k_max_in_matrix_string/seq/include/ops_seq.hpp"
 #include "util/include/func_test_util.hpp"
-#include "util/include/util.hpp"
 
 namespace remizov_k_max_in_matrix_string {
 
@@ -49,7 +48,7 @@ class RemizovKRunFuncMaxInMatrixString : public ppc::util::BaseRunFuncTests<InTy
   }
 
   bool CheckTestOutputData(OutType &output_data) final {
-    int world_rank;
+    int world_rank = 0;
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
 
     if (world_rank != 0) {
