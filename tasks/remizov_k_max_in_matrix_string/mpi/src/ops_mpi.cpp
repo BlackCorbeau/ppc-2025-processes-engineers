@@ -17,12 +17,18 @@ RemizovKMaxInMatrixStringMPI::RemizovKMaxInMatrixStringMPI(const InType &in) {
 }
 
 bool RemizovKMaxInMatrixStringMPI::ValidationImpl() {
-  if (GetInput().empty()) return false;
-  if (!GetOutput().empty()) return false;
+  if (GetInput().empty()) {
+    return false;
+  }
+  if (!GetOutput().empty()) {
+    return false;
+  }
 
   size_t row_size = GetInput()[0].size();
-  for (const auto& row : GetInput()) {
-    if (row.size() != row_size) return false;
+  for (const auto &row : GetInput()) {
+    if (row.size() != row_size) {
+      return false;
+    }
   }
 
   return true;
@@ -39,43 +45,43 @@ bool RemizovKMaxInMatrixStringMPI::RunImpl() {
 
   int total_rows = 0, row_size = 0;
   if (world_rank == 0) {
-      total_rows = GetInput().size();
-      if (total_rows > 0) {
-          row_size = GetInput()[0].size();
-      }
+    total_rows = GetInput().size();
+    if (total_rows > 0) {
+      row_size = GetInput()[0].size();
+    }
   }
 
   MPI_Bcast(&total_rows, 1, MPI_INT, 0, MPI_COMM_WORLD);
   MPI_Bcast(&row_size, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
   if (total_rows == 0 || row_size == 0) {
-      if (world_rank == 0) {
-          GetOutput().resize(0);
-      }
-      return true;
+    if (world_rank == 0) {
+      GetOutput().resize(0);
+    }
+    return true;
   }
 
   std::vector<int> sendcounts(world_size, 0);
   std::vector<int> displs(world_size, 0);
-
   std::vector<int> continuous_data;
-  if (world_rank == 0) {
-      continuous_data.resize(total_rows * row_size);
-      for (int i = 0; i < total_rows; i++) {
-          for (int j = 0; j < row_size; j++) {
-              continuous_data[i * row_size + j] = GetInput()[i][j];
-          }
-      }
 
-      int remaining = total_rows;
-      for (int i = 0; i < world_size; i++) {
-          sendcounts[i] = (remaining + world_size - i - 1) / (world_size - i);
-          remaining -= sendcounts[i];
-          if (i > 0) {
-              displs[i] = displs[i-1] + sendcounts[i-1];
-          }
+  if (world_rank == 0) {
+    continuous_data.resize(total_rows * row_size);
+    for (int i = 0; i < total_rows; i++) {
+      for (int j = 0; j < row_size; j++) {
+        continuous_data[i * row_size + j] = GetInput()[i][j];
       }
-      GetOutput().resize(total_rows);
+    }
+
+    int remaining = total_rows;
+    for (int i = 0; i < world_size; i++) {
+      sendcounts[i] = (remaining + world_size - i - 1) / (world_size - i);
+      remaining -= sendcounts[i];
+      if (i > 0) {
+        displs[i] = displs[i - 1] + sendcounts[i - 1];
+      }
+    }
+    GetOutput().resize(total_rows);
   }
 
   MPI_Bcast(sendcounts.data(), world_size, MPI_INT, 0, MPI_COMM_WORLD);
@@ -83,53 +89,45 @@ bool RemizovKMaxInMatrixStringMPI::RunImpl() {
 
   int local_row_count = sendcounts[world_rank];
 
+  std::vector<int> temp_sendcounts(world_size);
+  std::vector<int> temp_displs(world_size);
+
+  if (world_rank == 0) {
+    for (int i = 0; i < world_size; i++) {
+      temp_sendcounts[i] = sendcounts[i] * row_size;
+      temp_displs[i] = displs[i] * row_size;
+    }
+  }
+
+  MPI_Bcast(temp_sendcounts.data(), world_size, MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Bcast(temp_displs.data(), world_size, MPI_INT, 0, MPI_COMM_WORLD);
+
   if (local_row_count > 0) {
-      std::vector<int> local_data(local_row_count * row_size);
+    std::vector<int> local_data(local_row_count * row_size);
 
-      std::vector<int> temp_sendcounts(world_size);
-      std::vector<int> temp_displs(world_size);
+    MPI_Scatterv(world_rank == 0 ? continuous_data.data() : nullptr, temp_sendcounts.data(), temp_displs.data(),
+                 MPI_INT, local_data.data(), local_row_count * row_size, MPI_INT, 0, MPI_COMM_WORLD);
 
-      if (world_rank == 0) {
-          temp_sendcounts = sendcounts;
-          temp_displs = displs;
-          for (int i = 0; i < world_size; i++) {
-              temp_sendcounts[i] = sendcounts[i] * row_size;
-              temp_displs[i] = displs[i] * row_size;
-          }
+    std::vector<int> local_maxes(local_row_count);
+    for (int i = 0; i < local_row_count; i++) {
+      int max_val = std::numeric_limits<int>::min();
+      for (int j = 0; j < row_size; j++) {
+        if (local_data[i * row_size + j] > max_val) {
+          max_val = local_data[i * row_size + j];
+        }
       }
+      local_maxes[i] = max_val;
+    }
 
-      MPI_Bcast(temp_sendcounts.data(), world_size, MPI_INT, 0, MPI_COMM_WORLD);
-      MPI_Bcast(temp_displs.data(), world_size, MPI_INT, 0, MPI_COMM_WORLD);
-
-      MPI_Scatterv(world_rank == 0 ? continuous_data.data() : nullptr,
-                  temp_sendcounts.data(), temp_displs.data(), MPI_INT,
-                  local_data.data(), local_row_count * row_size, MPI_INT,
-                  0, MPI_COMM_WORLD);
-
-      std::vector<int> local_maxes(local_row_count);
-      for (int i = 0; i < local_row_count; i++) {
-          int max_val = std::numeric_limits<int>::min();
-          for (int j = 0; j < row_size; j++) {
-              if (local_data[i * row_size + j] > max_val) {
-                  max_val = local_data[i * row_size + j];
-              }
-          }
-          local_maxes[i] = max_val;
-      }
-
-      MPI_Gatherv(local_maxes.data(), local_row_count, MPI_INT,
-                  world_rank == 0 ? GetOutput().data() : nullptr,
-                  sendcounts.data(), displs.data(), MPI_INT,
-                  0, MPI_COMM_WORLD);
+    MPI_Gatherv(local_maxes.data(), local_row_count, MPI_INT, world_rank == 0 ? GetOutput().data() : nullptr,
+                sendcounts.data(), displs.data(), MPI_INT, 0, MPI_COMM_WORLD);
   } else {
-      MPI_Gatherv(nullptr, 0, MPI_INT,
-                  world_rank == 0 ? GetOutput().data() : nullptr,
-                  sendcounts.data(), displs.data(), MPI_INT,
-                  0, MPI_COMM_WORLD);
+    MPI_Gatherv(nullptr, 0, MPI_INT, world_rank == 0 ? GetOutput().data() : nullptr, sendcounts.data(), displs.data(),
+                MPI_INT, 0, MPI_COMM_WORLD);
   }
 
   if (world_rank == 0) {
-      return !GetOutput().empty();
+    return !GetOutput().empty();
   }
   return true;
 }
