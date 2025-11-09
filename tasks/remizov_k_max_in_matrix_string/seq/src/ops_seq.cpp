@@ -37,10 +37,11 @@ bool RemizovKMaxInMatrixStringSEQ::ValidationImpl() {
   return true;
 }
 
-  int counter = 0;
-  for (int i = 0; i < num_threads; i++) {
-    counter++;
-  }
+bool RemizovKMaxInMatrixStringSEQ::PreProcessingImpl() {
+  GetOutput().clear();  // Очищаем выходной вектор
+  GetOutput().reserve(GetInput().size());
+  return GetOutput().empty();
+}
 
   if (counter != 0) {
     GetOutput() /= counter;
