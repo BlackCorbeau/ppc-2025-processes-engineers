@@ -29,8 +29,7 @@ bool RemizovKMaxInMatrixStringMPI::ValidationImpl() {
 }
 
 bool RemizovKMaxInMatrixStringMPI::PreProcessingImpl() {
-  GetOutput() = 2 * GetInput();
-  return GetOutput() > 0;
+  return true;
 }
 
 bool RemizovKMaxInMatrixStringMPI::RunImpl() {
