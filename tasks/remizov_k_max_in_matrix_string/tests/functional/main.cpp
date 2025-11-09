@@ -70,7 +70,8 @@ class RemizovKRunFuncMaxInMatrixString : public ppc::util::BaseRunFuncTests<InTy
   }
 
  private:
-  InType input_data_ = 0;
+  InType input_data_ = std::vector<std::vector<int>>();
+  OutType expected_output_ = std::vector<int>();
 };
 
 namespace {
