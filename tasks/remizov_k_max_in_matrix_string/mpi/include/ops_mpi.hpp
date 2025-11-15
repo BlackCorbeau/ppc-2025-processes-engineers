@@ -1,7 +1,6 @@
 #pragma once
 
 #include <tuple>
-#include <utility>
 #include <vector>
 
 #include "remizov_k_max_in_matrix_string/common/include/common.hpp"
@@ -37,9 +36,10 @@ class RemizovKMaxInMatrixStringMPI : public BaseTask {
                                                                                  int row_size, int world_rank,
                                                                                  int world_size);
   static std::vector<int> CalculateLocalMaxes(const std::vector<int> &local_data, int local_row_count, int row_size);
-  std::vector<int> ProcessLocalData(int world_rank, int local_row_count, int row_size,
-                                    const std::vector<int> &continuous_data, const std::vector<int> &temp_sendcounts,
-                                    const std::vector<int> &temp_displs);
+  static std::vector<int> ProcessLocalData(int world_rank, int local_row_count, int row_size,
+                                           const std::vector<int> &continuous_data,
+                                           const std::vector<int> &temp_sendcounts,
+                                           const std::vector<int> &temp_displs);
   void GatherResults(const std::vector<int> &local_maxes, const std::vector<int> &sendcounts,
                      const std::vector<int> &displs, int world_rank);
   bool Finalize(int world_rank);
