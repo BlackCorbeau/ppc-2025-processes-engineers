@@ -97,6 +97,8 @@ bool RemizovKMaxInMatrixStringMPI::RunImpl() {
   if (GetInput().empty()) {
     return true;
   }
+  return false;
+}
 
   int size = 0;
   int rank = 0;

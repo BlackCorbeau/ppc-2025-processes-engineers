@@ -4,6 +4,9 @@
 #include "remizov_k_max_in_matrix_string/common/include/common.hpp"
 #include "task/include/task.hpp"
 
+#include <vector>
+#include <tuple>
+
 namespace remizov_k_max_in_matrix_string {
 
 class RemizovKMaxInMatrixStringMPI : public BaseTask {
