@@ -33,12 +33,7 @@ bool RemizovKMaxInMatrixStringMPI::PreProcessingImpl() {
   return true;
 }
 
-bool RemizovKMaxInMatrixStringMPI::RunImpl() {
-  int world_size = 0;
-  int world_rank = 0;
-  MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-  MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
-
+std::tuple<int, int> RemizovKMaxInMatrixStringMPI::BroadcastMatrixDimensions(int world_rank) {
   int total_rows = 0;
   int row_size = 0;
   if (world_rank == 0) {
@@ -51,43 +46,69 @@ bool RemizovKMaxInMatrixStringMPI::RunImpl() {
   MPI_Bcast(&total_rows, 1, MPI_INT, 0, MPI_COMM_WORLD);
   MPI_Bcast(&row_size, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
+  return {total_rows, row_size};
+}
+
+bool RemizovKMaxInMatrixStringMPI::ShouldEarlyReturn(int total_rows, int row_size, int world_rank) {
   if (total_rows == 0 || row_size == 0) {
     if (world_rank == 0) {
       GetOutput().resize(0);
     }
     return true;
   }
+  return false;
+}
 
+std::vector<int> RemizovKMaxInMatrixStringMPI::FlattenInputData(int total_rows, int row_size) {
+  std::vector<int> continuous_data(static_cast<std::size_t>(total_rows) * static_cast<std::size_t>(row_size));
+  for (int i = 0; i < total_rows; ++i) {
+    for (int j = 0; j < row_size; ++j) {
+      const std::size_t index = (static_cast<std::size_t>(i) * static_cast<std::size_t>(row_size)) + static_cast<std::size_t>(j);
+      continuous_data[index] = GetInput()[i][j];
+    }
+  }
+  return continuous_data;
+}
+
+void RemizovKMaxInMatrixStringMPI::CalculateDataDistribution(std::vector<int>& sendcounts, std::vector<int>& displs,
+                                                           int total_rows, int world_size) {
+  int remaining = total_rows;
+  for (int i = 0; i < world_size; ++i) {
+    sendcounts[i] = (remaining + world_size - i - 1) / (world_size - i);
+    remaining -= sendcounts[i];
+    if (i > 0) {
+      displs[i] = displs[i - 1] + sendcounts[i - 1];
+    }
+  }
+}
+
+std::tuple<std::vector<int>, std::vector<int>, std::vector<int>>
+RemizovKMaxInMatrixStringMPI::PrepareDataDistribution(int world_rank, int world_size,
+                                                     int total_rows, int row_size) {
   std::vector<int> sendcounts(world_size, 0);
   std::vector<int> displs(world_size, 0);
   std::vector<int> continuous_data;
 
   if (world_rank == 0) {
-    continuous_data.resize(static_cast<std::size_t>(total_rows) * static_cast<std::size_t>(row_size));
-    for (int i = 0; i < total_rows; ++i) {
-      for (int j = 0; j < row_size; ++j) {
-        const std::size_t index =
-            (static_cast<std::size_t>(i) * static_cast<std::size_t>(row_size)) + static_cast<std::size_t>(j);
-        continuous_data[index] = GetInput()[i][j];
-      }
-    }
-
-    int remaining = total_rows;
-    for (int i = 0; i < world_size; ++i) {
-      sendcounts[i] = (remaining + world_size - i - 1) / (world_size - i);
-      remaining -= sendcounts[i];
-      if (i > 0) {
-        displs[i] = displs[i - 1] + sendcounts[i - 1];
-      }
-    }
+    continuous_data = FlattenInputData(total_rows, row_size);
+    CalculateDataDistribution(sendcounts, displs, total_rows, world_size);
     GetOutput().resize(static_cast<std::size_t>(total_rows));
   }
 
+  return {std::move(sendcounts), std::move(displs), std::move(continuous_data)};
+}
+
+void RemizovKMaxInMatrixStringMPI::BroadcastDistributionInfo(std::vector<int>& sendcounts,
+                                                           std::vector<int>& displs,
+                                                           int world_size) {
   MPI_Bcast(sendcounts.data(), world_size, MPI_INT, 0, MPI_COMM_WORLD);
   MPI_Bcast(displs.data(), world_size, MPI_INT, 0, MPI_COMM_WORLD);
+}
 
-  const int local_row_count = sendcounts[world_rank];
-
+std::tuple<std::vector<int>, std::vector<int>>
+RemizovKMaxInMatrixStringMPI::PrepareScatterParameters(const std::vector<int>& sendcounts,
+                                                      const std::vector<int>& displs,
+                                                      int row_size, int world_rank, int world_size) {
   std::vector<int> temp_sendcounts(world_size);
   std::vector<int> temp_displs(world_size);
 
@@ -101,36 +122,83 @@ bool RemizovKMaxInMatrixStringMPI::RunImpl() {
   MPI_Bcast(temp_sendcounts.data(), world_size, MPI_INT, 0, MPI_COMM_WORLD);
   MPI_Bcast(temp_displs.data(), world_size, MPI_INT, 0, MPI_COMM_WORLD);
 
-  std::vector<int> local_data;
-  std::vector<int> local_maxes;
+  return {std::move(temp_sendcounts), std::move(temp_displs)};
+}
 
-  if (local_row_count > 0) {
-    local_data.resize(static_cast<std::size_t>(local_row_count) * static_cast<std::size_t>(row_size));
-
-    const int *sendbuf = (world_rank == 0) ? continuous_data.data() : nullptr;
-    MPI_Scatterv(sendbuf, temp_sendcounts.data(), temp_displs.data(), MPI_INT, local_data.data(),
-                 local_row_count * row_size, MPI_INT, 0, MPI_COMM_WORLD);
-
-    local_maxes.resize(static_cast<std::size_t>(local_row_count));
-    for (int i = 0; i < local_row_count; ++i) {
-      int max_val = std::numeric_limits<int>::min();
-      for (int j = 0; j < row_size; ++j) {
-        const std::size_t index =
-            (static_cast<std::size_t>(i) * static_cast<std::size_t>(row_size)) + static_cast<std::size_t>(j);
-        max_val = std::max(local_data[index], max_val);
-      }
-      local_maxes[static_cast<std::size_t>(i)] = max_val;
+std::vector<int> RemizovKMaxInMatrixStringMPI::CalculateLocalMaxes(const std::vector<int>& local_data,
+                                                                  int local_row_count, int row_size) {
+  std::vector<int> local_maxes(static_cast<std::size_t>(local_row_count));
+  for (int i = 0; i < local_row_count; ++i) {
+    int max_val = std::numeric_limits<int>::min();
+    for (int j = 0; j < row_size; ++j) {
+      const std::size_t index = (static_cast<std::size_t>(i) * static_cast<std::size_t>(row_size)) + static_cast<std::size_t>(j);
+      max_val = std::max(local_data[index], max_val);
     }
+    local_maxes[static_cast<std::size_t>(i)] = max_val;
+  }
+  return local_maxes;
+}
+
+std::vector<int> RemizovKMaxInMatrixStringMPI::ProcessLocalData(int world_rank, int local_row_count, int row_size,
+                                                               const std::vector<int>& continuous_data,
+                                                               const std::vector<int>& temp_sendcounts,
+                                                               const std::vector<int>& temp_displs) {
+  if (local_row_count <= 0) {
+    return {};
   }
 
-  int *recvbuf = (world_rank == 0) ? GetOutput().data() : nullptr;
+  std::vector<int> local_data(static_cast<std::size_t>(local_row_count) * static_cast<std::size_t>(row_size));
+  const int* sendbuf = (world_rank == 0) ? continuous_data.data() : nullptr;
+
+  MPI_Scatterv(sendbuf, temp_sendcounts.data(), temp_displs.data(), MPI_INT, local_data.data(),
+               local_row_count * row_size, MPI_INT, 0, MPI_COMM_WORLD);
+
+  return CalculateLocalMaxes(local_data, local_row_count, row_size);
+}
+
+void RemizovKMaxInMatrixStringMPI::GatherResults(const std::vector<int>& local_maxes,
+                                                const std::vector<int>& sendcounts,
+                                                const std::vector<int>& displs,
+                                                int world_rank) {
+  int* recvbuf = (world_rank == 0) ? GetOutput().data() : nullptr;
+  int local_row_count = static_cast<int>(local_maxes.size());
+
   MPI_Gatherv(local_row_count > 0 ? local_maxes.data() : nullptr, local_row_count, MPI_INT, recvbuf, sendcounts.data(),
               displs.data(), MPI_INT, 0, MPI_COMM_WORLD);
+}
 
+bool RemizovKMaxInMatrixStringMPI::Finalize(int world_rank) {
   if (world_rank == 0) {
     return !GetOutput().empty();
   }
   return true;
+}
+
+bool RemizovKMaxInMatrixStringMPI::RunImpl() {
+  int world_size = 0;
+  int world_rank = 0;
+  MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+  MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+
+  auto [total_rows, row_size] = BroadcastMatrixDimensions(world_rank);
+
+  if (ShouldEarlyReturn(total_rows, row_size, world_rank)) {
+    return true;
+  }
+
+  auto [sendcounts, displs, continuous_data] = PrepareDataDistribution(world_rank, world_size, total_rows, row_size);
+
+  BroadcastDistributionInfo(sendcounts, displs, world_size);
+
+  const int local_row_count = sendcounts[world_rank];
+
+  auto [temp_sendcounts, temp_displs] = PrepareScatterParameters(sendcounts, displs, row_size, world_rank, world_size);
+
+  std::vector<int> local_maxes = ProcessLocalData(world_rank, local_row_count, row_size, continuous_data, temp_sendcounts, temp_displs);
+
+  GatherResults(local_maxes, sendcounts, displs, world_rank);
+
+  return Finalize(world_rank);
 }
 
 bool RemizovKMaxInMatrixStringMPI::PostProcessingImpl() {
