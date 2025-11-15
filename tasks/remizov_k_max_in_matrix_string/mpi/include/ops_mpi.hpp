@@ -2,7 +2,6 @@
 #include <vector>
 
 #include <tuple>
-#include <utility>
 #include <vector>
 
 #include "remizov_k_max_in_matrix_string/common/include/common.hpp"
