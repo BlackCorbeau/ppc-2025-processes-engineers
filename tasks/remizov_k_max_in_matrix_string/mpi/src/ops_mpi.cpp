@@ -5,9 +5,12 @@
 #include <algorithm>
 #include <cstddef>
 #include <limits>
+#include <tuple>
+#include <utility>
 #include <vector>
 
 #include "remizov_k_max_in_matrix_string/common/include/common.hpp"
+#include "util/include/util.hpp"
 
 namespace remizov_k_max_in_matrix_string {
 
