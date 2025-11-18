@@ -10,8 +10,8 @@ namespace remizov_k_max_in_matrix_string {
 
 RemizovKMaxInMatrixStringSEQ::RemizovKMaxInMatrixStringSEQ(const InType &in) {
   SetTypeOfTask(GetStaticTypeOfTask());
-  GetInput() = std::vector<std::vector<int>>(in);
-  GetOutput() = std::vector<int>();
+  Intype tmp(in);
+  GetInput().swap(tmp);
 }
 
 bool RemizovKMaxInMatrixStringSEQ::ValidationImpl() {
@@ -33,8 +33,7 @@ bool RemizovKMaxInMatrixStringSEQ::ValidationImpl() {
 
 bool RemizovKMaxInMatrixStringSEQ::PreProcessingImpl() {
   GetOutput().clear();
-  GetOutput().reserve(GetInput().size());
-  return GetOutput().empty();
+  return true;
 }
 
 bool RemizovKMaxInMatrixStringSEQ::RunImpl() {

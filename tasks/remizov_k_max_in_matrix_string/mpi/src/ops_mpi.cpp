@@ -15,8 +15,8 @@ namespace remizov_k_max_in_matrix_string {
 
 RemizovKMaxInMatrixStringMPI::RemizovKMaxInMatrixStringMPI(const InType &in) {
   SetTypeOfTask(GetStaticTypeOfTask());
-  GetInput() = in;
-  GetOutput() = std::vector<int>();
+  Intype tmp(in);
+  GetInput().swap(tmp);
 }
 
 bool RemizovKMaxInMatrixStringMPI::ValidationImpl() {
@@ -32,6 +32,7 @@ bool RemizovKMaxInMatrixStringMPI::ValidationImpl() {
 }
 
 bool RemizovKMaxInMatrixStringMPI::PreProcessingImpl() {
+  GetOutput().clear();
   return true;
 }
 
