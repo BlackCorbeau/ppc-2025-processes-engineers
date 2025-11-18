@@ -10,7 +10,7 @@ namespace remizov_k_max_in_matrix_string {
 
 RemizovKMaxInMatrixStringSEQ::RemizovKMaxInMatrixStringSEQ(const InType &in) {
   SetTypeOfTask(GetStaticTypeOfTask());
-  GetInput() = in;
+  GetInput() = std::vector<std::vector<int>>(in);
   GetOutput() = std::vector<int>();
 }
 
