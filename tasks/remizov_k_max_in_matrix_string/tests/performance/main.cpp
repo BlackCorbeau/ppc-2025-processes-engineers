@@ -12,9 +12,22 @@ class RemizovKRunPerfMaxInMatrixString : public ppc::util::BaseRunPerfTests<InTy
   OutType expected_output_;
 
   void SetUp() override {
-    input_data_ = {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}};
+    const int rows = 1000;
+    const int cols = 1000;
+    input_data_.resize(rows);
 
-    expected_output_ = {3, 6, 9};
+    std::srand(std::time(nullptr));
+    for (int i = 0; i < rows; ++i) {
+      input_data_[i].resize(cols);
+      int max_in_row = 0;
+      for (int j = 0; j < cols; ++j) {
+        input_data_[i][j] = std::rand() % 10000;
+        if (input_data_[i][j] > max_in_row) {
+          max_in_row = input_data_[i][j];
+        }
+      }
+      expected_output_.push_back(max_in_row);
+    }
   }
 
   bool CheckTestOutputData(OutType &output_data) final {
