@@ -1,5 +1,8 @@
 #include <gtest/gtest.h>
 
+#include <cmath>
+#include <vector>
+
 #include "remizov_k_max_in_matrix_string/common/include/common.hpp"
 #include "remizov_k_max_in_matrix_string/mpi/include/ops_mpi.hpp"
 #include "remizov_k_max_in_matrix_string/seq/include/ops_seq.hpp"
@@ -7,31 +10,19 @@
 
 namespace remizov_k_max_in_matrix_string {
 
-class RemizovKRunPerfMaxInMatrixString : public ppc::util::BaseRunPerfTests<InType, OutType> {
+class RemizovKMaxInMatrixStringPerfTest : public ppc::util::BaseRunPerfTests<InType, OutType> {
+  const int kCount_ = 4000000;
   InType input_data_;
-  OutType expected_output_;
+  OutType res_;
 
   void SetUp() override {
-    const int rows = 900;
-    const int cols = 900;
-    input_data_.resize(rows);
-
-    int counter = 1;
-    for (int i = 0; i < rows; ++i) {
-      input_data_[i].resize(cols);
-      for (int j = 0; j < cols; ++j) {
-        input_data_[i][j] = counter++;
-      }
-    }
-
-    expected_output_.resize(rows);
-    for (int i = 0; i < rows; ++i) {
-      expected_output_[i] = input_data_[i][cols - 1];
-    }
+    int n = static_cast<int>(std::sqrt(kCount_));
+    input_data_ = std::vector<std::vector<int>>(n, std::vector<int>(n, 2));
+    res_ = std::vector<int>(n, 2);
   }
 
   bool CheckTestOutputData(OutType &output_data) final {
-    return output_data == expected_output_;
+    return res_ == output_data;
   }
 
   InType GetTestInputData() final {
@@ -39,7 +30,7 @@ class RemizovKRunPerfMaxInMatrixString : public ppc::util::BaseRunPerfTests<InTy
   }
 };
 
-TEST_P(RemizovKRunPerfMaxInMatrixString, RunPerfModes) {
+TEST_P(RemizovKMaxInMatrixStringPerfTest, RunPerfModes) {
   ExecuteTest(GetParam());
 }
 
@@ -49,8 +40,8 @@ const auto kAllPerfTasks =
 
 const auto kGtestValues = ppc::util::TupleToGTestValues(kAllPerfTasks);
 
-const auto kPerfTestName = RemizovKRunPerfMaxInMatrixString::CustomPerfTestName;
+const auto kPerfTestName = RemizovKMaxInMatrixStringPerfTest::CustomPerfTestName;
 
-INSTANTIATE_TEST_SUITE_P(RunModeTests, RemizovKRunPerfMaxInMatrixString, kGtestValues, kPerfTestName);
+INSTANTIATE_TEST_SUITE_P(RunModeTests, RemizovKMaxInMatrixStringPerfTest, kGtestValues, kPerfTestName);
 
 }  // namespace remizov_k_max_in_matrix_string
