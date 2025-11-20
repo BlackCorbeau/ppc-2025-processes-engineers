@@ -1,6 +1,7 @@
 #include "remizov_k_max_in_matrix_string/seq/include/ops_seq.hpp"
 
 #include <algorithm>
+#include <cstddef>
 #include <vector>
 
 #include "remizov_k_max_in_matrix_string/common/include/common.hpp"
@@ -14,16 +15,6 @@ RemizovKMaxInMatrixStringSEQ::RemizovKMaxInMatrixStringSEQ(const InType &in) {
 }
 
 bool RemizovKMaxInMatrixStringSEQ::ValidationImpl() {
-  if (GetInput().empty()) {
-    return true;
-  }
-
-  size_t first_row_size = GetInput()[0].size();
-  for (const auto &row : GetInput()) {
-    if (row.size() != first_row_size) {
-      return false;
-    }
-  }
   return true;
 }
 
@@ -33,19 +24,24 @@ bool RemizovKMaxInMatrixStringSEQ::PreProcessingImpl() {
 }
 
 bool RemizovKMaxInMatrixStringSEQ::RunImpl() {
-  GetOutput().reserve(GetInput().size());
+  if (GetInput().empty()) {
+    return true;
+  }
 
+  std::vector<int> result;
   for (const auto &row : GetInput()) {
     if (!row.empty()) {
-      GetOutput().push_back(*std::max_element(row.begin(), row.end()));
+      int max_val = *std::max_element(row.begin(), row.end());
+      result.push_back(max_val);
     }
   }
 
+  GetOutput() = result;
   return true;
 }
 
 bool RemizovKMaxInMatrixStringSEQ::PostProcessingImpl() {
-  return GetOutput().size() == GetInput().size();
+  return true;
 }
 
 }  // namespace remizov_k_max_in_matrix_string
