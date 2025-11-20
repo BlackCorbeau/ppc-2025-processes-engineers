@@ -16,17 +16,17 @@ class RemizovKRunPerfMaxInMatrixString : public ppc::util::BaseRunPerfTests<InTy
     const int cols = 1000;
     input_data_.resize(rows);
 
-    std::srand(std::time(nullptr));
+    int counter = 1;
     for (int i = 0; i < rows; ++i) {
       input_data_[i].resize(cols);
-      int max_in_row = 0;
       for (int j = 0; j < cols; ++j) {
-        input_data_[i][j] = std::rand() % 10000;
-        if (input_data_[i][j] > max_in_row) {
-          max_in_row = input_data_[i][j];
-        }
+        input_data_[i][j] = counter++;
       }
-      expected_output_.push_back(max_in_row);
+    }
+
+    expected_output_.resize(rows);
+    for (int i = 0; i < rows; ++i) {
+      expected_output_[i] = input_data_[i][cols - 1];
     }
   }
 
