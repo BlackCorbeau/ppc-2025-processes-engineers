@@ -43,9 +43,9 @@ class RemizovKRunFuncMaxInMatrixString : public ppc::util::BaseRunFuncTests<InTy
 
  protected:
   void SetUp() override {
-    int initialized;
+    int initialized = 0;
     MPI_Initialized(&initialized);
-    if (!initialized) {
+    if (initialized == 0) {
       MPI_Init(nullptr, nullptr);
     }
     TestType params = std::get<static_cast<std::size_t>(ppc::util::GTestParamIndex::kTestParams)>(GetParam());
@@ -54,13 +54,6 @@ class RemizovKRunFuncMaxInMatrixString : public ppc::util::BaseRunFuncTests<InTy
   }
 
   bool CheckTestOutputData(OutType &output_data) final {
-    int world_rank = 0;
-    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
-
-    if (world_rank != 0) {
-      return true;
-    }
-
     if (output_data.size() != expected_output_.size()) {
       return false;
     }
