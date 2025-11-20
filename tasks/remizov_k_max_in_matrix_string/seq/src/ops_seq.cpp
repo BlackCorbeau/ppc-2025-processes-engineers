@@ -46,4 +46,8 @@ bool RemizovKMaxInMatrixStringSEQ::PostProcessingImpl() {
   return true;
 }
 
+bool RemizovKMaxInMatrixStringSEQ::PostProcessingImpl() {
+  return GetOutput().size() == GetInput().size();
+}
+
 }  // namespace remizov_k_max_in_matrix_string
