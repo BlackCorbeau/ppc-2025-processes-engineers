@@ -1,12 +1,8 @@
 #include "remizov_k_max_in_matrix_string/mpi/include/ops_mpi.hpp"
 
 #include <mpi.h>
-
 #include <algorithm>
-#include <cstddef>
 #include <limits>
-#include <tuple>
-#include <utility>
 #include <vector>
 
 #include "remizov_k_max_in_matrix_string/common/include/common.hpp"
@@ -99,8 +95,6 @@ bool RemizovKMaxInMatrixStringMPI::RunImpl() {
   if (GetInput().empty()) {
     return true;
   }
-  return false;
-}
 
   int size = 0;
   int rank = 0;
