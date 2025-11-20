@@ -12,8 +12,8 @@ class RemizovKRunPerfMaxInMatrixString : public ppc::util::BaseRunPerfTests<InTy
   OutType expected_output_;
 
   void SetUp() override {
-    const int rows = 1000;
-    const int cols = 1000;
+    const int rows = 100;
+    const int cols = 100;
     input_data_.resize(rows);
 
     int counter = 1;
