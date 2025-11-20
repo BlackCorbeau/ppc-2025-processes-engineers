@@ -1,6 +1,4 @@
 #pragma once
-
-#include <tuple>
 #include <vector>
 
 #include "remizov_k_max_in_matrix_string/common/include/common.hpp"
@@ -20,9 +18,8 @@ class RemizovKMaxInMatrixStringMPI : public BaseTask {
   bool PreProcessingImpl() override;
   bool RunImpl() override;
   bool PostProcessingImpl() override;
-
-  std::vector<int> CalculateRowDistribution(int world_size, int total_rows);
-  std::vector<int> FindLocalMaxes(const std::vector<int> &local_data, int local_rows, int row_size);
+  std::vector<int> FindMaxValues(int start, int end);
+  static std::vector<int> CalculatingInterval(int size_prcs, int rank, int count_rows);
 };
 
 }  // namespace remizov_k_max_in_matrix_string
