@@ -30,7 +30,7 @@ bool RemizovKMaxInMatrixStringSEQ::RunImpl() {
   std::vector<int> result;
   for (const auto &row : GetInput()) {
     if (!row.empty()) {
-      int max_val = *std::max_element(row.begin(), row.end());
+      int max_val = *std::ranges::max_element(row);
       result.push_back(max_val);
     }
   }
