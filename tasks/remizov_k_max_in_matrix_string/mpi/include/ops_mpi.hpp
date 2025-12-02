@@ -20,6 +20,9 @@ class RemizovKMaxInMatrixStringMPI : public BaseTask {
   bool PostProcessingImpl() override;
   std::vector<int> FindMaxValues(int start, int end);
   static std::vector<int> CalculatingInterval(int size_prcs, int rank, int count_rows);
+  void ProcessRankZero(int size, int count_rows);
+  void ProcessOtherRanks();
+  void BroadcastResults(int rank);
 };
 
 }  // namespace remizov_k_max_in_matrix_string

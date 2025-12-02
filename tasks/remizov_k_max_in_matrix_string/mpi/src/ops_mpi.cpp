@@ -3,6 +3,8 @@
 #include <mpi.h>
 
 #include <algorithm>
+#include <cstddef>
+#include <limits>
 #include <vector>
 
 #include "remizov_k_max_in_matrix_string/common/include/common.hpp"
@@ -27,13 +29,16 @@ bool RemizovKMaxInMatrixStringMPI::PreProcessingImpl() {
 std::vector<int> RemizovKMaxInMatrixStringMPI::FindMaxValues(const int start, const int end) {
   std::vector<int> result;
 
-  if (start < 0 || end < 0 || start > end || start >= static_cast<int>(GetInput().size())) {
-    return result;  // Возвращаем пустой вектор
+  const std::size_t input_size = GetInput().size();
+  const int input_size_int = static_cast<int>(input_size);
+
+  if (start < 0 || end < 0 || start > end || start >= input_size_int) {
+    return result;
   }
 
   int actual_end = end;
-  if (end >= static_cast<int>(GetInput().size())) {
-    actual_end = static_cast<int>(GetInput().size()) - 1;
+  if (end >= input_size_int) {
+    actual_end = input_size_int - 1;
   }
 
   for (int i = start; i <= actual_end; i++) {
@@ -59,9 +64,9 @@ std::vector<int> RemizovKMaxInMatrixStringMPI::CalculatingInterval(int size_prcs
 
   if (rank < remainder) {
     interval[0] = rank * (rows_per_process + 1);
-    interval[1] = interval[0] + rows_per_process;  // не -1, потому что мы уже включили одну
+    interval[1] = interval[0] + rows_per_process;
   } else {
-    interval[0] = remainder * (rows_per_process + 1) + (rank - remainder) * rows_per_process;
+    interval[0] = (remainder * (rows_per_process + 1)) + ((rank - remainder) * rows_per_process);
     interval[1] = interval[0] + rows_per_process - 1;
   }
 
@@ -89,54 +94,67 @@ bool RemizovKMaxInMatrixStringMPI::RunImpl() {
   int count_rows = static_cast<int>(GetInput().size());
 
   if (rank == 0) {
-    for (int i = 1; i < size; i++) {
-      std::vector<int> interval = CalculatingInterval(size, i, count_rows);
-      MPI_Send(interval.data(), 2, MPI_INT, i, 0, MPI_COMM_WORLD);
-    }
-
-    std::vector<int> interval = CalculatingInterval(size, 0, count_rows);
-    std::vector<int> max_values;
-
-    if (interval[0] != -1 && interval[1] != -1) {
-      max_values = FindMaxValues(interval[0], interval[1]);
-    }
-
-    for (int &value : max_values) {
-      GetOutput().push_back(value);
-    }
-
-    MPI_Status status;
-    for (int i = 1; i < size; i++) {
-      int size_values = 0;
-      MPI_Recv(&size_values, 1, MPI_INT, i, 1, MPI_COMM_WORLD, &status);
-
-      if (size_values > 0) {
-        std::vector<int> buf(size_values);
-        MPI_Recv(buf.data(), size_values, MPI_INT, i, 2, MPI_COMM_WORLD, &status);
-        for (int &value : buf) {
-          GetOutput().push_back(value);
-        }
-      }
-    }
-
+    ProcessRankZero(size, count_rows);
   } else {
-    MPI_Status status;
-    std::vector<int> buf(2);
-    MPI_Recv(buf.data(), 2, MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
-
-    std::vector<int> max_values;
-    if (buf[0] != -1 && buf[1] != -1) {
-      max_values = FindMaxValues(buf[0], buf[1]);
-    }
-
-    int size_values = static_cast<int>(max_values.size());
-    MPI_Send(&size_values, 1, MPI_INT, 0, 1, MPI_COMM_WORLD);
-
-    if (size_values > 0) {
-      MPI_Send(max_values.data(), size_values, MPI_INT, 0, 2, MPI_COMM_WORLD);
-    }
+    ProcessOtherRanks();
   }
 
+  BroadcastResults(rank);
+
+  return true;
+}
+
+void RemizovKMaxInMatrixStringMPI::ProcessRankZero(int size, int count_rows) {
+  for (int i = 1; i < size; i++) {
+    std::vector<int> interval = CalculatingInterval(size, i, count_rows);
+    MPI_Send(interval.data(), 2, MPI_INT, i, 0, MPI_COMM_WORLD);
+  }
+
+  std::vector<int> interval = CalculatingInterval(size, 0, count_rows);
+  std::vector<int> max_values;
+
+  if (interval[0] != -1 && interval[1] != -1) {
+    max_values = FindMaxValues(interval[0], interval[1]);
+  }
+
+  for (int &value : max_values) {
+    GetOutput().push_back(value);
+  }
+
+  MPI_Status status;
+  for (int i = 1; i < size; i++) {
+    int size_values = 0;
+    MPI_Recv(&size_values, 1, MPI_INT, i, 1, MPI_COMM_WORLD, &status);
+
+    if (size_values > 0) {
+      std::vector<int> buf(size_values);
+      MPI_Recv(buf.data(), size_values, MPI_INT, i, 2, MPI_COMM_WORLD, &status);
+      for (int &value : buf) {
+        GetOutput().push_back(value);
+      }
+    }
+  }
+}
+
+void RemizovKMaxInMatrixStringMPI::ProcessOtherRanks() {
+  MPI_Status status;
+  std::vector<int> buf(2);
+  MPI_Recv(buf.data(), 2, MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
+
+  std::vector<int> max_values;
+  if (buf[0] != -1 && buf[1] != -1) {
+    max_values = FindMaxValues(buf[0], buf[1]);
+  }
+
+  int size_values = static_cast<int>(max_values.size());
+  MPI_Send(&size_values, 1, MPI_INT, 0, 1, MPI_COMM_WORLD);
+
+  if (size_values > 0) {
+    MPI_Send(max_values.data(), size_values, MPI_INT, 0, 2, MPI_COMM_WORLD);
+  }
+}
+
+void RemizovKMaxInMatrixStringMPI::BroadcastResults(int rank) {
   int total_size = 0;
   if (rank == 0) {
     total_size = static_cast<int>(GetOutput().size());
@@ -151,8 +169,6 @@ bool RemizovKMaxInMatrixStringMPI::RunImpl() {
   if (total_size > 0) {
     MPI_Bcast(GetOutput().data(), total_size, MPI_INT, 0, MPI_COMM_WORLD);
   }
-
-  return true;
 }
 
 bool RemizovKMaxInMatrixStringMPI::PostProcessingImpl() {
