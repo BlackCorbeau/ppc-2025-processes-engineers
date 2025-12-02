@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <limits>
+#include <numeric>
 #include <vector>
 
 #include "remizov_k_max_in_matrix_string/common/include/common.hpp"
