@@ -11,7 +11,7 @@
 namespace remizov_k_max_in_matrix_string {
 
 class RemizovKMaxInMatrixStringPerfTest : public ppc::util::BaseRunPerfTests<InType, OutType> {
-  const int kCount_ = 4000000;
+  const int kCount_ = 50000000;
   InType input_data_;
   OutType res_;
 
