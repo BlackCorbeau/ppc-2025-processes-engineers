@@ -1,6 +1,7 @@
 #include "remizov_k_max_in_matrix_string/seq/include/ops_seq.hpp"
 
 #include <algorithm>
+#include <limits>
 #include <vector>
 
 #include "remizov_k_max_in_matrix_string/common/include/common.hpp"
@@ -30,7 +31,7 @@ bool RemizovKMaxInMatrixStringSEQ::RunImpl() {
   std::vector<int> result;
   for (const auto &row : GetInput()) {
     if (!row.empty()) {
-      int max_val = *std::max_element(row.begin(), row.end());
+      int max_val = *std::ranges::max_element(row);
       result.push_back(max_val);
     } else {
       result.push_back(std::numeric_limits<int>::min());
