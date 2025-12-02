@@ -2,6 +2,7 @@
 
 #include <mpi.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <limits>
 #include <vector>
@@ -110,8 +111,10 @@ bool RemizovKMaxInMatrixStringMPI::RunImpl() {
     std::vector<int> all_intervals(static_cast<std::size_t>(size) * 2);
     for (int i = 0; i < size; ++i) {
       std::vector<int> interval = CalculatingInterval(size, i, count_rows);
-      all_intervals[static_cast<std::size_t>(2 * i)] = interval[0];
-      all_intervals[static_cast<std::size_t>(2 * i + 1)] = interval[1];
+      const std::size_t idx1 = static_cast<std::size_t>(2) * static_cast<std::size_t>(i);
+      const std::size_t idx2 = idx1 + 1;
+      all_intervals[idx1] = interval[0];
+      all_intervals[idx2] = interval[1];
     }
 
     MPI_Scatter(all_intervals.data(), 2, MPI_INT, local_interval.data(), 2, MPI_INT, 0, MPI_COMM_WORLD);
