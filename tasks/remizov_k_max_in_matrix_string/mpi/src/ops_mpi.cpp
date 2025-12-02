@@ -41,39 +41,36 @@ std::vector<int> RemizovKMaxInMatrixStringMPI::FindMaxValues(const int start, co
       int max_val = *std::max_element(GetInput()[i].begin(), GetInput()[i].end());
       result.push_back(max_val);
     } else {
+      result.push_back(std::numeric_limits<int>::min());
     }
   }
   return result;
 }
 
 std::vector<int> RemizovKMaxInMatrixStringMPI::CalculatingInterval(int size_prcs, int rank, int count_rows) {
-  std::vector<int> interval(2);
+  std::vector<int> interval(2, -1);
 
   if (count_rows <= 0 || size_prcs <= 0 || rank < 0 || rank >= size_prcs) {
-    interval[0] = -1;
-    interval[1] = -1;
     return interval;
   }
 
-  int base_chunk = count_rows / size_prcs;
-  int extra_rows = count_rows % size_prcs;
+  int rows_per_process = count_rows / size_prcs;
+  int remainder = count_rows % size_prcs;
 
-  if (rank < extra_rows) {
-    interval[0] = rank * (base_chunk + 1);
-    interval[1] = interval[0] + base_chunk;
+  if (rank < remainder) {
+    interval[0] = rank * (rows_per_process + 1);
+    interval[1] = interval[0] + rows_per_process;  // не -1, потому что мы уже включили одну
   } else {
-    int offset = extra_rows * (base_chunk + 1);
-    interval[0] = offset + (rank - extra_rows) * base_chunk;
-    interval[1] = interval[0] + base_chunk - 1;
+    interval[0] = remainder * (rows_per_process + 1) + (rank - remainder) * rows_per_process;
+    interval[1] = interval[0] + rows_per_process - 1;
   }
 
-  if (interval[1] >= count_rows) {
-    interval[1] = count_rows - 1;
-  }
-
-  if (interval[0] > interval[1] || interval[0] < 0 || interval[1] < 0) {
+  if (interval[0] >= count_rows) {
     interval[0] = -1;
     interval[1] = -1;
+  }
+  if (interval[1] >= count_rows) {
+    interval[1] = count_rows - 1;
   }
 
   return interval;
