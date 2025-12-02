@@ -87,6 +87,9 @@ std::vector<int> RemizovKMaxInMatrixStringMPI::CalculatingInterval(int size_prcs
   if (end >= count_rows) {
     end = count_rows - 1;
   }
+  if (interval[1] >= count_rows) {
+    interval[1] = count_rows - 1;
+  }
 
   return {start, end};
 }
