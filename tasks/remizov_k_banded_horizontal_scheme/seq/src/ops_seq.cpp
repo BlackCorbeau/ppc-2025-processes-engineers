@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 #include "remizov_k_banded_horizontal_scheme/common/include/common.hpp"
@@ -16,7 +17,7 @@ bool AreRowsConsistent(const Matrix &matrix) {
   }
 
   const size_t first_row_size = matrix[0].size();
-  for (const auto &row : matrix) {
+  for (const auto &row : matrix) {  // NOLINT
     if (row.size() != first_row_size) {
       return false;
     }
