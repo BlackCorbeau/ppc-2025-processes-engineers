@@ -1,5 +1,6 @@
 #include "remizov_k_banded_horizontal_scheme/seq/include/ops_seq.hpp"
 
+#include <algorithm>
 #include <cstddef>
 #include <stdexcept>
 #include <vector>
@@ -7,6 +8,20 @@
 #include "remizov_k_banded_horizontal_scheme/common/include/common.hpp"
 
 namespace remizov_k_banded_horizontal_scheme {
+
+namespace {
+
+bool AreRowsConsistent(const Matrix &matrix) {
+  if (matrix.empty()) {
+    return true;
+  }
+
+  const size_t first_row_size = matrix[0].size();
+  return std::all_of(matrix.begin(), matrix.end(),
+                     [first_row_size](const auto &row) { return row.size() == first_row_size; });
+}
+
+}  // namespace
 
 RemizovKBandedHorizontalSchemeSEQ::RemizovKBandedHorizontalSchemeSEQ(const InType &in) {
   SetTypeOfTask(GetStaticTypeOfTask());
@@ -46,27 +61,17 @@ bool RemizovKBandedHorizontalSchemeSEQ::AreMatricesCompatible(const Matrix &a, c
     return false;
   }
 
-  size_t cols_a = a[0].size();
-  for (const auto &row : a) {
-    if (row.size() != cols_a) {
-      return false;
-    }
-  }
-
-  size_t cols_b = b[0].size();
-  for (const auto &row : b) {
-    if (row.size() != cols_b) {
-      return false;
-    }
+  if (!AreRowsConsistent(a) || !AreRowsConsistent(b)) {
+    return false;
   }
 
   return a[0].size() == b.size();
 }
 
 Matrix RemizovKBandedHorizontalSchemeSEQ::MultiplyMatrices(const Matrix &a, const Matrix &b) {
-  size_t n = a.size();
-  size_t m = a[0].size();
-  size_t p = b[0].size();
+  const size_t n = a.size();
+  const size_t m = a[0].size();
+  const size_t p = b[0].size();
 
   Matrix c(n, std::vector<int>(p, 0));
 
