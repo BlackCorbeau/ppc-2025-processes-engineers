@@ -28,14 +28,14 @@ bool AreRowsConsistent(const Matrix &matrix) {
   return true;
 }
 
-void SetSizesFromMatrix(const Matrix& a, const Matrix& b, std::array<int, 4>& sizes) {
+void SetSizesFromMatrix(const Matrix &a, const Matrix &b, std::array<int, 4> &sizes) {
   sizes[0] = static_cast<int>(a.size());
   sizes[1] = a.empty() ? 0 : static_cast<int>(a[0].size());
   sizes[2] = static_cast<int>(b.size());
   sizes[3] = b.empty() ? 0 : static_cast<int>(b[0].size());
 }
 
-void ResizeMatrixBasedOnSizes(Matrix& matrix, int rows, int cols) {
+void ResizeMatrixBasedOnSizes(Matrix &matrix, int rows, int cols) {
   if (rows > 0 && cols > 0) {
     matrix.resize(static_cast<size_t>(rows));
     for (auto &row : matrix) {
@@ -139,7 +139,7 @@ Matrix MultiplyLocalRowsImpl(const Matrix &a_local, const Matrix &b) {
   return c_local;
 }
 
-void GatherColumnDataNonZeroRank(int rows_local, const Matrix& c_local) {
+void GatherColumnDataNonZeroRank(int rows_local, const Matrix &c_local) {
   if (rows_local > 0 && !c_local.empty()) {
     const int cols = static_cast<int>(c_local[0].size());
     for (int col = 0; col < cols; ++col) {
@@ -154,8 +154,8 @@ void GatherColumnDataNonZeroRank(int rows_local, const Matrix& c_local) {
   }
 }
 
-void GatherColumnDataZeroRank(int rows_local, const Matrix& c_local,
-                             const std::vector<int>& all_rows, Matrix* result_ptr) {
+void GatherColumnDataZeroRank(int rows_local, const Matrix &c_local, const std::vector<int> &all_rows,
+                              Matrix *result_ptr) {
   if (result_ptr == nullptr) {
     return;
   }
@@ -165,7 +165,7 @@ void GatherColumnDataZeroRank(int rows_local, const Matrix& c_local,
     return;
   }
 
-  Matrix& result = *result_ptr;
+  Matrix &result = *result_ptr;
   std::vector<int> displs(all_rows.size(), 0);
   for (size_t i = 1; i < all_rows.size(); ++i) {
     displs[i] = displs[i - 1] + all_rows[i - 1];
@@ -178,8 +178,8 @@ void GatherColumnDataZeroRank(int rows_local, const Matrix& c_local,
     }
 
     std::vector<int> global_col(result.size());
-    MPI_Gatherv(local_col.data(), rows_local, MPI_INT, global_col.data(),
-                all_rows.data(), displs.data(), MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Gatherv(local_col.data(), rows_local, MPI_INT, global_col.data(), all_rows.data(), displs.data(), MPI_INT, 0,
+                MPI_COMM_WORLD);
 
     for (size_t i = 0; i < result.size(); ++i) {
       result[i][static_cast<size_t>(col)] = global_col[i];
@@ -187,8 +187,8 @@ void GatherColumnDataZeroRank(int rows_local, const Matrix& c_local,
   }
 }
 
-void GatherColumnData(int rank, int rows_local, const Matrix &c_local,
-                     const std::vector<int> &all_rows, Matrix *result_ptr) {
+void GatherColumnData(int rank, int rows_local, const Matrix &c_local, const std::vector<int> &all_rows,
+                      Matrix *result_ptr) {
   if (rank != 0) {
     GatherColumnDataNonZeroRank(rows_local, c_local);
   } else {
