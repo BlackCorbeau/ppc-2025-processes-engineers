@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <stdexcept>
 #include <vector>
 
 #include "remizov_k_banded_horizontal_scheme/common/include/common.hpp"
@@ -15,7 +16,8 @@ RemizovKBandedHorizontalSchemeSEQ::RemizovKBandedHorizontalSchemeSEQ(const InTyp
 }
 
 bool RemizovKBandedHorizontalSchemeSEQ::ValidationImpl() {
-  return true;
+  const auto &[A, B] = GetInput();
+  return AreMatricesCompatible(A, B);
 }
 
 bool RemizovKBandedHorizontalSchemeSEQ::PreProcessingImpl() {
@@ -24,19 +26,13 @@ bool RemizovKBandedHorizontalSchemeSEQ::PreProcessingImpl() {
 }
 
 bool RemizovKBandedHorizontalSchemeSEQ::RunImpl() {
-  if (GetInput().empty()) {
-    return true;
+  const auto &[A, B] = GetInput();
+
+  if (!AreMatricesCompatible(A, B)) {
+    throw std::invalid_argument("Matrices are not compatible for multiplication");
   }
 
-  std::vector<int> result;
-  for (const auto &row : GetInput()) {
-    if (!row.empty()) {
-      int max_val = *std::ranges::max_element(row);
-      result.push_back(max_val);
-    } else {
-      result.push_back(std::numeric_limits<int>::min());
-    }
-  }
+  Matrix result = MultiplyMatrices(A, B);
 
   GetOutput() = result;
   return true;
@@ -44,6 +40,48 @@ bool RemizovKBandedHorizontalSchemeSEQ::RunImpl() {
 
 bool RemizovKBandedHorizontalSchemeSEQ::PostProcessingImpl() {
   return true;
+}
+
+bool RemizovKBandedHorizontalSchemeSEQ::AreMatricesCompatible(const Matrix &A, const Matrix &B) {
+  if (A.empty() || B.empty()) {
+    return false;
+  }
+
+  size_t cols_A = A[0].size();
+  for (const auto &row : A) {
+    if (row.size() != cols_A) {
+      return false;
+    }
+  }
+
+  size_t cols_B = B[0].size();
+  for (const auto &row : B) {
+    if (row.size() != cols_B) {
+      return false;
+    }
+  }
+
+  return A[0].size() == B.size();
+}
+
+Matrix RemizovKBandedHorizontalSchemeSEQ::MultiplyMatrices(const Matrix &A, const Matrix &B) {
+  size_t n = A.size();
+  size_t m = A[0].size();
+  size_t p = B[0].size();
+
+  Matrix C(n, std::vector<int>(p, 0));
+
+  for (size_t i = 0; i < n; ++i) {
+    for (size_t j = 0; j < p; ++j) {
+      int sum = 0;
+      for (size_t k = 0; k < m; ++k) {
+        sum += A[i][k] * B[k][j];
+      }
+      C[i][j] = sum;
+    }
+  }
+
+  return C;
 }
 
 }  // namespace remizov_k_banded_horizontal_scheme
