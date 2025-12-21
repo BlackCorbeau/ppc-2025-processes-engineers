@@ -1,6 +1,5 @@
 #include "remizov_k_banded_horizontal_scheme/seq/include/ops_seq.hpp"
 
-#include <algorithm>
 #include <cstddef>
 #include <stdexcept>
 #include <vector>
@@ -17,8 +16,12 @@ bool AreRowsConsistent(const Matrix &matrix) {
   }
 
   const size_t first_row_size = matrix[0].size();
-  return std::all_of(matrix.begin(), matrix.end(),
-                     [first_row_size](const auto &row) { return row.size() == first_row_size; });
+  for (const auto &row : matrix) {
+    if (row.size() != first_row_size) {
+      return false;
+    }
+  }
+  return true;
 }
 
 }  // namespace
@@ -73,16 +76,19 @@ Matrix RemizovKBandedHorizontalSchemeSEQ::MultiplyMatrices(const Matrix &a, cons
   const size_t m = a[0].size();
   const size_t p = b[0].size();
 
-  Matrix c(n, std::vector<int>(p, 0));
+  Matrix c;
+  c.reserve(n);
 
   for (size_t i = 0; i < n; ++i) {
+    std::vector<int> row(p, 0);
     for (size_t j = 0; j < p; ++j) {
       int sum = 0;
       for (size_t k = 0; k < m; ++k) {
         sum += a[i][k] * b[k][j];
       }
-      c[i][j] = sum;
+      row[j] = sum;
     }
+    c.push_back(std::move(row));
   }
 
   return c;
