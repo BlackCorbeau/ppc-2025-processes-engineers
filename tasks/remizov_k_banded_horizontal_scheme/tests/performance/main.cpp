@@ -11,18 +11,37 @@
 namespace remizov_k_banded_horizontal_scheme {
 
 class RemizovKBandedHorizontalSchemePerfTest : public ppc::util::BaseRunPerfTests<InType, OutType> {
-  const int kCount_ = 50000000;
+  const int kMatrixSize_ = 100;
   InType input_data_;
   OutType res_;
 
   void SetUp() override {
-    int n = static_cast<int>(std::sqrt(kCount_));
-    input_data_ = std::vector<std::vector<int>>(n, std::vector<int>(n, 2));
-    res_ = std::vector<int>(n, 2);
+    Matrix A(kMatrixSize_, std::vector<int>(kMatrixSize_, 2));
+    Matrix B(kMatrixSize_, std::vector<int>(kMatrixSize_, 3));
+
+    Matrix expected(kMatrixSize_, std::vector<int>(kMatrixSize_, 2 * 3 * kMatrixSize_));
+
+    input_data_ = std::make_tuple(A, B);
+    res_ = expected;
   }
 
   bool CheckTestOutputData(OutType &output_data) final {
-    return res_ == output_data;
+    if (output_data.size() != res_.size()) {
+      return false;
+    }
+
+    for (size_t i = 0; i < output_data.size(); ++i) {
+      if (output_data[i].size() != res_[i].size()) {
+        return false;
+      }
+      for (size_t j = 0; j < output_data[i].size(); ++j) {
+        if (output_data[i][j] != res_[i][j]) {
+          return false;
+        }
+      }
+    }
+
+    return true;
   }
 
   InType GetTestInputData() final {
@@ -30,7 +49,7 @@ class RemizovKBandedHorizontalSchemePerfTest : public ppc::util::BaseRunPerfTest
   }
 };
 
-TEST_P(RemizovKBandedHorizontalSchemePerfTest, RunPerfModes) {
+TEST_P(RemizovKBandedHorizontalSchemePerfTest, MatrixMultiplicationPerf) {
   ExecuteTest(GetParam());
 }
 
@@ -42,6 +61,6 @@ const auto kGtestValues = ppc::util::TupleToGTestValues(kAllPerfTasks);
 
 const auto kPerfTestName = RemizovKBandedHorizontalSchemePerfTest::CustomPerfTestName;
 
-INSTANTIATE_TEST_SUITE_P(RunModeTests, RemizovKBandedHorizontalSchemePerfTest, kGtestValues, kPerfTestName);
+INSTANTIATE_TEST_SUITE_P(MatrixMultiplicationPerf, RemizovKBandedHorizontalSchemePerfTest, kGtestValues, kPerfTestName);
 
 }  // namespace remizov_k_banded_horizontal_scheme
