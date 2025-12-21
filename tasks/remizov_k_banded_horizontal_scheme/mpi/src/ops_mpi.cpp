@@ -2,10 +2,10 @@
 
 #include <mpi.h>
 
-#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 #include "remizov_k_banded_horizontal_scheme/common/include/common.hpp"
@@ -20,7 +20,7 @@ bool AreRowsConsistent(const Matrix &matrix) {
   }
 
   const size_t first_row_size = matrix[0].size();
-  for (const auto &row : matrix) {
+  for (const auto &row : matrix) {  // NOLINT
     if (row.size() != first_row_size) {
       return false;
     }
@@ -28,49 +28,48 @@ bool AreRowsConsistent(const Matrix &matrix) {
   return true;
 }
 
+void SetSizesFromMatrix(const Matrix& a, const Matrix& b, std::array<int, 4>& sizes) {
+  sizes[0] = static_cast<int>(a.size());
+  sizes[1] = a.empty() ? 0 : static_cast<int>(a[0].size());
+  sizes[2] = static_cast<int>(b.size());
+  sizes[3] = b.empty() ? 0 : static_cast<int>(b[0].size());
+}
+
+void ResizeMatrixBasedOnSizes(Matrix& matrix, int rows, int cols) {
+  if (rows > 0 && cols > 0) {
+    matrix.resize(static_cast<size_t>(rows));
+    for (auto &row : matrix) {
+      row.resize(static_cast<size_t>(cols), 0);
+    }
+  } else {
+    matrix.clear();
+  }
+}
+
 void BroadcastSizesAndResizeMatrices(int rank, InType &input_data, std::array<int, 4> &sizes) {
   auto &[a, b] = input_data;
 
   if (rank == 0) {
-    sizes[0] = static_cast<int>(a.size());
-    sizes[1] = a.empty() ? 0 : static_cast<int>(a[0].size());
-    sizes[2] = static_cast<int>(b.size());
-    sizes[3] = b.empty() ? 0 : static_cast<int>(b[0].size());
+    SetSizesFromMatrix(a, b, sizes);
   }
 
   MPI_Bcast(sizes.data(), 4, MPI_INT, 0, MPI_COMM_WORLD);
 
   if (rank != 0) {
-    if (sizes[0] > 0 && sizes[1] > 0) {
-      a.resize(static_cast<size_t>(sizes[0]));
-      for (auto &row : a) {
-        row.resize(static_cast<size_t>(sizes[1]), 0);
-      }
-    } else {
-      a.clear();
-    }
-    if (sizes[2] > 0 && sizes[3] > 0) {
-      b.resize(static_cast<size_t>(sizes[2]));
-      for (auto &row : b) {
-        row.resize(static_cast<size_t>(sizes[3]), 0);
-      }
-    } else {
-      b.clear();
-    }
+    ResizeMatrixBasedOnSizes(a, sizes[0], sizes[1]);
+    ResizeMatrixBasedOnSizes(b, sizes[2], sizes[3]);
   }
 }
 
 void BroadcastMatrixData(const std::array<int, 4> &sizes, InType &input_data) {
   auto &[a, b] = input_data;
 
-  // Broadcast matrix b
   if (sizes[2] > 0 && sizes[3] > 0) {
     for (int i = 0; i < sizes[2]; ++i) {
       MPI_Bcast(b[static_cast<size_t>(i)].data(), sizes[3], MPI_INT, 0, MPI_COMM_WORLD);
     }
   }
 
-  // Broadcast matrix a
   if (sizes[0] > 0 && sizes[1] > 0) {
     for (int i = 0; i < sizes[0]; ++i) {
       MPI_Bcast(a[static_cast<size_t>(i)].data(), sizes[1], MPI_INT, 0, MPI_COMM_WORLD);
@@ -140,30 +139,33 @@ Matrix MultiplyLocalRowsImpl(const Matrix &a_local, const Matrix &b) {
   return c_local;
 }
 
-void GatherColumnData(int rank, int rows_local, const Matrix &c_local, const std::vector<int> &all_rows,
-                      Matrix *result_ptr) {
-  if (rank != 0) {
-    if (rows_local > 0 && !c_local.empty()) {
-      const int cols = static_cast<int>(c_local[0].size());
-      for (int col = 0; col < cols; ++col) {
-        std::vector<int> local_col(static_cast<size_t>(rows_local));
-        for (int i = 0; i < rows_local; ++i) {
-          local_col[static_cast<size_t>(i)] = c_local[static_cast<size_t>(i)][static_cast<size_t>(col)];
-        }
-        MPI_Gatherv(local_col.data(), rows_local, MPI_INT, nullptr, nullptr, nullptr, MPI_INT, 0, MPI_COMM_WORLD);
+void GatherColumnDataNonZeroRank(int rows_local, const Matrix& c_local) {
+  if (rows_local > 0 && !c_local.empty()) {
+    const int cols = static_cast<int>(c_local[0].size());
+    for (int col = 0; col < cols; ++col) {
+      std::vector<int> local_col(static_cast<size_t>(rows_local));
+      for (int i = 0; i < rows_local; ++i) {
+        local_col[static_cast<size_t>(i)] = c_local[static_cast<size_t>(i)][static_cast<size_t>(col)];
       }
-    } else {
-      MPI_Gatherv(nullptr, 0, MPI_INT, nullptr, nullptr, nullptr, MPI_INT, 0, MPI_COMM_WORLD);
+      MPI_Gatherv(local_col.data(), rows_local, MPI_INT, nullptr, nullptr, nullptr, MPI_INT, 0, MPI_COMM_WORLD);
     }
+  } else {
+    MPI_Gatherv(nullptr, 0, MPI_INT, nullptr, nullptr, nullptr, MPI_INT, 0, MPI_COMM_WORLD);
+  }
+}
+
+void GatherColumnDataZeroRank(int rows_local, const Matrix& c_local,
+                             const std::vector<int>& all_rows, Matrix* result_ptr) {
+  if (result_ptr == nullptr) {
     return;
   }
 
   const int cols = rows_local > 0 ? static_cast<int>(c_local[0].size()) : 0;
-  if (cols <= 0 || result_ptr == nullptr) {
+  if (cols <= 0) {
     return;
   }
 
-  Matrix &result = *result_ptr;
+  Matrix& result = *result_ptr;
   std::vector<int> displs(all_rows.size(), 0);
   for (size_t i = 1; i < all_rows.size(); ++i) {
     displs[i] = displs[i - 1] + all_rows[i - 1];
@@ -176,12 +178,21 @@ void GatherColumnData(int rank, int rows_local, const Matrix &c_local, const std
     }
 
     std::vector<int> global_col(result.size());
-    MPI_Gatherv(local_col.data(), rows_local, MPI_INT, global_col.data(), all_rows.data(), displs.data(), MPI_INT, 0,
-                MPI_COMM_WORLD);
+    MPI_Gatherv(local_col.data(), rows_local, MPI_INT, global_col.data(),
+                all_rows.data(), displs.data(), MPI_INT, 0, MPI_COMM_WORLD);
 
     for (size_t i = 0; i < result.size(); ++i) {
       result[i][static_cast<size_t>(col)] = global_col[i];
     }
+  }
+}
+
+void GatherColumnData(int rank, int rows_local, const Matrix &c_local,
+                     const std::vector<int> &all_rows, Matrix *result_ptr) {
+  if (rank != 0) {
+    GatherColumnDataNonZeroRank(rows_local, c_local);
+  } else {
+    GatherColumnDataZeroRank(rows_local, c_local, all_rows, result_ptr);
   }
 }
 
@@ -211,7 +222,6 @@ Matrix GatherResultsImpl(const Matrix &c_local, int rank, int size) {
     return result;
   }
 
-  // Non-zero ranks pass nullptr for result
   GatherColumnData(rank, rows_local, c_local, all_rows, nullptr);
   return {};
 }
@@ -292,7 +302,7 @@ bool RemizovKBandedHorizontalSchemeMPI::RunImpl() {
 
   Matrix a_local;
   if (row_range[0] >= 0 && row_range[0] <= row_range[1] && static_cast<size_t>(row_range[1]) < a.size()) {
-    a_local.reserve(static_cast<size_t>(row_range[1] - row_range[0] + 1));
+    a_local.reserve(static_cast<size_t>(row_range[1] - row_range[0] + 1ULL));
     for (int i = row_range[0]; i <= row_range[1]; ++i) {
       a_local.push_back(a[static_cast<size_t>(i)]);
     }
