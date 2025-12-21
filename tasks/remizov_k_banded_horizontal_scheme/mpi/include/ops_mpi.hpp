@@ -1,4 +1,5 @@
 #pragma once
+#include <tuple>
 #include <vector>
 
 #include "remizov_k_banded_horizontal_scheme/common/include/common.hpp"
@@ -18,6 +19,11 @@ class RemizovKBandedHorizontalSchemeMPI : public BaseTask {
   bool PreProcessingImpl() override;
   bool RunImpl() override;
   bool PostProcessingImpl() override;
+
+  void BroadcastMatrices(int rank);
+  std::vector<int> CalculateRowRange(int size_procs, int rank, int total_rows);
+  void MultiplyLocalRows(const Matrix &A_local, const Matrix &B, Matrix &C_local);
+  void GatherResults(Matrix &C, const Matrix &C_local, int rank, int size);
 };
 
 }  // namespace remizov_k_banded_horizontal_scheme
