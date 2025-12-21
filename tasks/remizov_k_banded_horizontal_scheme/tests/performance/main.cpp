@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
-#include <cmath>
+#include <cstddef>
+#include <tuple>
 #include <vector>
 
 #include "remizov_k_banded_horizontal_scheme/common/include/common.hpp"
@@ -16,12 +17,12 @@ class RemizovKBandedHorizontalSchemePerfTest : public ppc::util::BaseRunPerfTest
   OutType res_;
 
   void SetUp() override {
-    Matrix A(kMatrixSize_, std::vector<int>(kMatrixSize_, 2));
-    Matrix B(kMatrixSize_, std::vector<int>(kMatrixSize_, 3));
+    Matrix matrix_a(kMatrixSize_, std::vector<int>(kMatrixSize_, 2));
+    Matrix matrix_b(kMatrixSize_, std::vector<int>(kMatrixSize_, 3));
 
     Matrix expected(kMatrixSize_, std::vector<int>(kMatrixSize_, 2 * 3 * kMatrixSize_));
 
-    input_data_ = std::make_tuple(A, B);
+    input_data_ = std::make_tuple(matrix_a, matrix_b);
     res_ = expected;
   }
 

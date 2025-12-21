@@ -17,8 +17,8 @@ class RemizovKBandedHorizontalSchemeSEQ : public BaseTask {
   bool PreProcessingImpl() override;
   bool RunImpl() override;
   bool PostProcessingImpl() override;
-  static bool AreMatricesCompatible(const Matrix &A, const Matrix &B);
-  static Matrix MultiplyMatrices(const Matrix &A, const Matrix &B);
+  static bool AreMatricesCompatible(const Matrix &a, const Matrix &b);
+  static Matrix MultiplyMatrices(const Matrix &a, const Matrix &b);
 };
 
 }  // namespace remizov_k_banded_horizontal_scheme
