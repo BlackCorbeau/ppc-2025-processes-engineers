@@ -17,34 +17,15 @@ namespace remizov_k_banded_horizontal_scheme {
 class RemizovKRunBandedHorizontalScheme : public ppc::util::BaseRunFuncTests<InType, OutType, TestType> {
  public:
   static std::string PrintTestParam(const TestType &test_param) {
-    const auto &input_matrix = std::get<0>(test_param);
-    const auto &expected_output = std::get<1>(test_param);
-
-    std::string test_name = "matrix_" + std::to_string(input_matrix.size()) + "x" +
-                            (input_matrix.empty() ? "0" : std::to_string(input_matrix[0].size()));
-    if (!expected_output.empty()) {
-      test_name += "_maxes";
-      for (size_t i = 0; i < expected_output.size(); ++i) {
-        test_name += "_" + FormatNumber(expected_output[i]);
-      }
-    }
-
+    const auto &test_name = std::get<0>(test_param);
     return test_name;
-  }
-
- private:
-  static std::string FormatNumber(int num) {
-    if (num >= 0) {
-      return std::to_string(num);
-    }
-    return "neg" + std::to_string(-num);
   }
 
  protected:
   void SetUp() override {
     TestType params = std::get<static_cast<std::size_t>(ppc::util::GTestParamIndex::kTestParams)>(GetParam());
-    input_data_ = std::get<0>(params);
-    expected_output_ = std::get<1>(params);
+    input_data_ = std::get<1>(params);
+    expected_output_ = std::get<2>(params);
   }
 
   bool CheckTestOutputData(OutType &output_data) final {
@@ -53,8 +34,13 @@ class RemizovKRunBandedHorizontalScheme : public ppc::util::BaseRunFuncTests<InT
     }
 
     for (size_t i = 0; i < output_data.size(); ++i) {
-      if (output_data[i] != expected_output_[i]) {
+      if (output_data[i].size() != expected_output_[i].size()) {
         return false;
+      }
+      for (size_t j = 0; j < output_data[i].size(); ++j) {
+        if (output_data[i][j] != expected_output_[i][j]) {
+          return false;
+        }
       }
     }
 
@@ -72,22 +58,39 @@ class RemizovKRunBandedHorizontalScheme : public ppc::util::BaseRunFuncTests<InT
 
 namespace {
 
-TEST_P(RemizovKRunBandedHorizontalScheme, FindMaxInEachRow) {
+TEST_P(RemizovKRunBandedHorizontalScheme, MatrixMultiplication) {
   ExecuteTest(GetParam());
 }
 
 const std::array<TestType, 6> kTestParam = {
-    std::make_tuple(std::vector<std::vector<int>>{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}, std::vector<int>{3, 6, 9}),
+    std::make_tuple(
+        "basic_2x2_mult",
+        std::make_tuple(std::vector<std::vector<int>>{{1, 2}, {3, 4}}, std::vector<std::vector<int>>{{5, 6}, {7, 8}}),
+        std::vector<std::vector<int>>{{19, 22}, {43, 50}}),
 
-    std::make_tuple(std::vector<std::vector<int>>{{-1, -5, -3}, {-9, -2, -7}}, std::vector<int>{-1, -2}),
+    std::make_tuple("identity_mult",
+                    std::make_tuple(std::vector<std::vector<int>>{{1, 2, 3}, {4, 5, 6}},
+                                    std::vector<std::vector<int>>{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}}),
+                    std::vector<std::vector<int>>{{1, 2, 3}, {4, 5, 6}}),
 
-    std::make_tuple(std::vector<std::vector<int>>{{5, 8, 2, 10, 1}}, std::vector<int>{10}),
+    std::make_tuple("rectangular_mult",
+                    std::make_tuple(std::vector<std::vector<int>>{{1, 2, 3}, {4, 5, 6}},
+                                    std::vector<std::vector<int>>{{7, 8}, {9, 10}, {11, 12}}),
+                    std::vector<std::vector<int>>{{58, 64}, {139, 154}}),
 
-    std::make_tuple(std::vector<std::vector<int>>{{7, 7, 7}, {7, 7, 7}}, std::vector<int>{7, 7}),
+    std::make_tuple("single_element",
+                    std::make_tuple(std::vector<std::vector<int>>{{5}}, std::vector<std::vector<int>>{{3}}),
+                    std::vector<std::vector<int>>{{15}}),
 
-    std::make_tuple(std::vector<std::vector<int>>{{1, 5, 1}, {3, 3, 4}}, std::vector<int>{5, 4}),
+    std::make_tuple("negative_numbers",
+                    std::make_tuple(std::vector<std::vector<int>>{{-1, 2}, {3, -4}},
+                                    std::vector<std::vector<int>>{{5, -6}, {-7, 8}}),
+                    std::vector<std::vector<int>>{{-19, 22}, {43, -50}}),
 
-    std::make_tuple(std::vector<std::vector<int>>{{42}}, std::vector<int>{42})};
+    std::make_tuple("large_numbers",
+                    std::make_tuple(std::vector<std::vector<int>>{{100, 200}, {300, 400}},
+                                    std::vector<std::vector<int>>{{5, 6}, {7, 8}}),
+                    std::vector<std::vector<int>>{{1900, 2200}, {4300, 5000}})};
 
 const auto kTestTasksList = std::tuple_cat(ppc::util::AddFuncTask<RemizovKBandedHorizontalSchemeMPI, InType>(
                                                kTestParam, PPC_SETTINGS_remizov_k_banded_horizontal_scheme),
@@ -98,7 +101,7 @@ const auto kGtestValues = ppc::util::ExpandToValues(kTestTasksList);
 
 const auto kPerfTestName = RemizovKRunBandedHorizontalScheme::PrintFuncTestName<RemizovKRunBandedHorizontalScheme>;
 
-INSTANTIATE_TEST_SUITE_P(MatrixMaxTests, RemizovKRunBandedHorizontalScheme, kGtestValues, kPerfTestName);
+INSTANTIATE_TEST_SUITE_P(MatrixMultiplicationTests, RemizovKRunBandedHorizontalScheme, kGtestValues, kPerfTestName);
 
 }  // namespace
 
