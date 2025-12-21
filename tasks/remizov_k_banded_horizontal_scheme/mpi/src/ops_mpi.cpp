@@ -157,37 +157,41 @@ void RemizovKBandedHorizontalSchemeMPI::GatherResults(Matrix &C, const Matrix &C
       total_rows += rows;
     }
 
-    if (total_rows > 0 && !C_local.empty()) {
-      int cols = static_cast<int>(C_local[0].size());
-      C.resize(total_rows);
-      for (auto &row : C) {
-        row.resize(cols, 0);
-      }
-
-      std::vector<int> displs(size, 0);
-      for (int i = 1; i < size; ++i) {
-        displs[i] = displs[i - 1] + all_rows[i - 1];
-      }
-
-      for (int col = 0; col < cols; ++col) {
-        std::vector<int> local_col(rows_local);
-        for (int i = 0; i < rows_local; ++i) {
-          local_col[i] = C_local[i][col];
+    if (total_rows > 0) {
+      int cols = rows_local > 0 ? static_cast<int>(C_local[0].size()) : 0;
+      if (cols > 0) {
+        C.resize(total_rows);
+        for (auto &row : C) {
+          row.resize(cols, 0);
         }
 
-        std::vector<int> global_col(total_rows);
-        MPI_Gatherv(local_col.data(), rows_local, MPI_INT, global_col.data(), all_rows.data(), displs.data(), MPI_INT,
-                    0, MPI_COMM_WORLD);
-
-        for (int i = 0; i < total_rows; ++i) {
-          C[i][col] = global_col[i];
+        std::vector<int> displs(size, 0);
+        for (int i = 1; i < size; ++i) {
+          displs[i] = displs[i - 1] + all_rows[i - 1];
         }
+
+        for (int col = 0; col < cols; ++col) {
+          std::vector<int> local_col(rows_local);
+          for (int i = 0; i < rows_local; ++i) {
+            local_col[i] = C_local[i][col];
+          }
+
+          std::vector<int> global_col(total_rows);
+          MPI_Gatherv(local_col.data(), rows_local, MPI_INT, global_col.data(), all_rows.data(), displs.data(), MPI_INT,
+                      0, MPI_COMM_WORLD);
+
+          for (int i = 0; i < total_rows; ++i) {
+            C[i][col] = global_col[i];
+          }
+        }
+      } else {
+        C.clear();
       }
     } else {
       C.clear();
     }
   } else {
-    if (!C_local.empty()) {
+    if (rows_local > 0 && !C_local.empty()) {
       int cols = static_cast<int>(C_local[0].size());
 
       for (int col = 0; col < cols; ++col) {
@@ -199,9 +203,8 @@ void RemizovKBandedHorizontalSchemeMPI::GatherResults(Matrix &C, const Matrix &C
         MPI_Gatherv(local_col.data(), rows_local, MPI_INT, nullptr, nullptr, nullptr, MPI_INT, 0, MPI_COMM_WORLD);
       }
     } else {
-      // Send empty data
-      int empty = 0;
-      MPI_Gatherv(&empty, 0, MPI_INT, nullptr, nullptr, nullptr, MPI_INT, 0, MPI_COMM_WORLD);
+      // Просто собираем информацию о нулевых строках
+      MPI_Gatherv(nullptr, 0, MPI_INT, nullptr, nullptr, nullptr, MPI_INT, 0, MPI_COMM_WORLD);
     }
   }
 }
@@ -242,7 +245,7 @@ bool RemizovKBandedHorizontalSchemeMPI::RunImpl() {
     GetOutput() = C;
 
     int result_rows = static_cast<int>(C.size());
-    int result_cols = C.empty() ? 0 : static_cast<int>(C[0].size());
+    int result_cols = !C.empty() ? static_cast<int>(C[0].size()) : 0;
 
     MPI_Bcast(&result_rows, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&result_cols, 1, MPI_INT, 0, MPI_COMM_WORLD);
