@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <limits>
+#include <stdexcept>
 #include <vector>
 
 #include "remizov_k_banded_horizontal_scheme/common/include/common.hpp"
@@ -18,6 +19,26 @@ RemizovKBandedHorizontalSchemeMPI::RemizovKBandedHorizontalSchemeMPI(const InTyp
 }
 
 bool RemizovKBandedHorizontalSchemeMPI::ValidationImpl() {
+  const auto &[A, B] = GetInput();
+
+  if (A.empty() || B.empty()) {
+    return false;
+  }
+
+  size_t cols_A = A[0].size();
+  for (const auto &row : A) {
+    if (row.size() != cols_A) {
+      return false;
+    }
+  }
+
+  size_t cols_B = B[0].size();
+  for (const auto &row : B) {
+    if (row.size() != cols_B) {
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -26,7 +47,204 @@ bool RemizovKBandedHorizontalSchemeMPI::PreProcessingImpl() {
   return true;
 }
 
+void RemizovKBandedHorizontalSchemeMPI::BroadcastMatrices(int rank) {
+  const auto &[A, B] = GetInput();
+  int sizes[4];  // nA, mA, nB, mB
+
+  if (rank == 0) {
+    sizes[0] = static_cast<int>(A.size());
+    sizes[1] = static_cast<int>(A[0].size());
+    sizes[2] = static_cast<int>(B.size());
+    sizes[3] = static_cast<int>(B[0].size());
+  }
+
+  MPI_Bcast(sizes, 4, MPI_INT, 0, MPI_COMM_WORLD);
+
+  if (rank != 0) {
+    auto &[A_mod, B_mod] = GetInput();
+    A_mod.resize(sizes[0], std::vector<int>(sizes[1]));
+    B_mod.resize(sizes[2], std::vector<int>(sizes[3]));
+  }
+
+  if (rank == 0) {
+    for (int i = 0; i < sizes[2]; ++i) {
+      MPI_Bcast(const_cast<int *>(B[i].data()), sizes[3], MPI_INT, 0, MPI_COMM_WORLD);
+    }
+  } else {
+    auto &[A_mod, B_mod] = GetInput();
+    for (int i = 0; i < sizes[2]; ++i) {
+      MPI_Bcast(B_mod[i].data(), sizes[3], MPI_INT, 0, MPI_COMM_WORLD);
+    }
+  }
+
+  for (int i = 0; i < sizes[0]; ++i) {
+    if (rank == 0) {
+      MPI_Bcast(const_cast<int *>(A[i].data()), sizes[1], MPI_INT, 0, MPI_COMM_WORLD);
+    } else {
+      auto &[A_mod, B_mod] = GetInput();
+      MPI_Bcast(A_mod[i].data(), sizes[1], MPI_INT, 0, MPI_COMM_WORLD);
+    }
+  }
+}
+
+std::vector<int> RemizovKBandedHorizontalSchemeMPI::CalculateRowRange(int size_procs, int rank, int total_rows) {
+  std::vector<int> range(2);
+  int rows_per_proc = total_rows / size_procs;
+  int remainder = total_rows % size_procs;
+
+  int start = rank * rows_per_proc + std::min(rank, remainder);
+  int end = start + rows_per_proc - 1;
+
+  if (rank < remainder) {
+    end += 1;
+  }
+
+  range[0] = start;
+  range[1] = end;
+  return range;
+}
+
+void RemizovKBandedHorizontalSchemeMPI::MultiplyLocalRows(const Matrix &A_local, const Matrix &B, Matrix &C_local) {
+  if (A_local.empty() || B.empty()) {
+    return;
+  }
+
+  size_t n_local = A_local.size();
+  size_t m = A_local[0].size();
+  size_t p = B[0].size();
+
+  C_local.resize(n_local, std::vector<int>(p, 0));
+
+  for (size_t i = 0; i < n_local; ++i) {
+    for (size_t j = 0; j < p; ++j) {
+      int sum = 0;
+      for (size_t k = 0; k < m; ++k) {
+        sum += A_local[i][k] * B[k][j];
+      }
+      C_local[i][j] = sum;
+    }
+  }
+}
+
+void RemizovKBandedHorizontalSchemeMPI::GatherResults(Matrix &C, const Matrix &C_local, int rank, int size) {
+  int rows_local = static_cast<int>(C_local.size());
+  std::vector<int> all_rows(size);
+
+  MPI_Gather(&rows_local, 1, MPI_INT, all_rows.data(), 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+  if (rank == 0) {
+    int total_rows = 0;
+    for (int rows : all_rows) {
+      total_rows += rows;
+    }
+
+    if (total_rows > 0) {
+      int cols = C_local.empty() ? 0 : static_cast<int>(C_local[0].size());
+      C.resize(total_rows, std::vector<int>(cols));
+    }
+
+    if (!C_local.empty()) {
+      std::vector<int> displs(size, 0);
+      for (int i = 1; i < size; ++i) {
+        displs[i] = displs[i - 1] + all_rows[i - 1];
+      }
+
+      int cols = static_cast<int>(C_local[0].size());
+
+      for (int col = 0; col < cols; ++col) {
+        std::vector<int> local_col(rows_local);
+        for (int i = 0; i < rows_local; ++i) {
+          local_col[i] = C_local[i][col];
+        }
+
+        std::vector<int> global_col(total_rows);
+        MPI_Gatherv(local_col.data(), rows_local, MPI_INT, global_col.data(), all_rows.data(), displs.data(), MPI_INT,
+                    0, MPI_COMM_WORLD);
+
+        for (int i = 0; i < total_rows; ++i) {
+          C[i][col] = global_col[i];
+        }
+      }
+    }
+  } else {
+    if (!C_local.empty()) {
+      int cols = static_cast<int>(C_local[0].size());
+
+      for (int col = 0; col < cols; ++col) {
+        std::vector<int> local_col(rows_local);
+        for (int i = 0; i < rows_local; ++i) {
+          local_col[i] = C_local[i][col];
+        }
+
+        MPI_Gatherv(local_col.data(), rows_local, MPI_INT, nullptr, nullptr, nullptr, MPI_INT, 0, MPI_COMM_WORLD);
+      }
+    } else {
+      MPI_Gatherv(nullptr, 0, MPI_INT, nullptr, nullptr, nullptr, MPI_INT, 0, MPI_COMM_WORLD);
+    }
+  }
+}
+
 bool RemizovKBandedHorizontalSchemeMPI::RunImpl() {
+  int rank, size;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+  BroadcastMatrices(rank);
+
+  const auto &[A, B] = GetInput();
+
+  if (A.empty() || B.empty() || A[0].size() != B.size()) {
+    if (rank == 0) {
+      throw std::invalid_argument("Matrices are not compatible for multiplication");
+    }
+    return false;
+  }
+
+  std::vector<int> row_range = CalculateRowRange(size, rank, static_cast<int>(A.size()));
+
+  Matrix A_local;
+  if (row_range[0] >= 0 && row_range[0] <= row_range[1] && row_range[1] < static_cast<int>(A.size())) {
+    for (int i = row_range[0]; i <= row_range[1]; ++i) {
+      A_local.push_back(A[i]);
+    }
+  }
+
+  Matrix C_local;
+  MultiplyLocalRows(A_local, B, C_local);
+
+  Matrix C;
+  GatherResults(C, C_local, rank, size);
+
+  if (rank == 0) {
+    GetOutput() = C;
+
+    int result_rows = static_cast<int>(C.size());
+    int result_cols = C.empty() ? 0 : static_cast<int>(C[0].size());
+
+    MPI_Bcast(&result_rows, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&result_cols, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    if (result_rows > 0 && result_cols > 0) {
+      for (auto &row : C) {
+        MPI_Bcast(row.data(), result_cols, MPI_INT, 0, MPI_COMM_WORLD);
+      }
+    }
+  } else {
+    int result_rows, result_cols;
+    MPI_Bcast(&result_rows, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&result_cols, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    if (result_rows > 0 && result_cols > 0) {
+      Matrix C_recv(result_rows, std::vector<int>(result_cols));
+      for (auto &row : C_recv) {
+        MPI_Bcast(row.data(), result_cols, MPI_INT, 0, MPI_COMM_WORLD);
+      }
+      GetOutput() = C_recv;
+    } else {
+      GetOutput().clear();
+    }
+  }
+
   return true;
 }
 
