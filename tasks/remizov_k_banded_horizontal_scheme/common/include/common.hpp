@@ -7,9 +7,10 @@
 
 namespace remizov_k_banded_horizontal_scheme {
 
-using InType = std::vector<std::vector<int>>;
-using OutType = std::vector<int>;
-using TestType = std::tuple<std::vector<std::vector<int>>, std::vector<int>>;
+using Matrix = std::vector<std::vector<int>>;
+using InType = std::tuple<Matrix, Matrix>;
+using OutType = Matrix;
+using TestType = std::tuple<std::string, std::tuple<Matrix, Matrix>, Matrix>;
 using BaseTask = ppc::task::Task<InType, OutType>;
 
 }  // namespace remizov_k_banded_horizontal_scheme
