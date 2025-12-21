@@ -12,7 +12,7 @@
 namespace remizov_k_banded_horizontal_scheme {
 
 class RemizovKBandedHorizontalSchemePerfTest : public ppc::util::BaseRunPerfTests<InType, OutType> {
-  const int kMatrixSize_ = 100;
+  const int kMatrixSize_ = 1500;
   InType input_data_;
   OutType res_;
 
