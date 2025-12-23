@@ -14,9 +14,6 @@ namespace remizov_k_max_in_matrix_string {
 
 namespace {
 
-const double kDefaultTolerance = 1e-10;
-const int kDefaultMaxIterations = 1000;
-
 bool IsSystemCompatible(const std::vector<std::vector<double>> &A, const std::vector<double> &b) {
   if (A.empty() && b.empty()) {
     return true;

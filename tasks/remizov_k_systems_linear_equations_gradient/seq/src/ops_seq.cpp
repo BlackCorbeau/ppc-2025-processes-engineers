@@ -10,13 +10,6 @@
 
 namespace remizov_k_systems_linear_equations_gradient {
 
-namespace {
-
-const double kDefaultTolerance = 1e-10;
-const int kDefaultMaxIterations = 1000;
-
-}  // namespace
-
 RemizovKSystemLinearEquationsGradientSEQ::RemizovKSystemLinearEquationsGradientSEQ(const InType &in) {
   SetTypeOfTask(GetStaticTypeOfTask());
   InType tmp(in);
