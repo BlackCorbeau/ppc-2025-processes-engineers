@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstddef>
@@ -19,36 +20,31 @@ class RemizovKRunFuncSystemLinearEquationsGradient : public ppc::util::BaseRunFu
  public:
   static std::string PrintTestParam(const TestType &test_param) {
     const auto &[input, expected] = test_param;
-    const auto &[A, b] = input;
+    const auto &[matrix, vector_b] = input;
 
-    // Генерируем уникальное имя на основе размера и содержимого матрицы
     std::string test_name;
 
-    if (A.empty()) {
+    if (matrix.empty()) {
       test_name = "empty_system";
     } else {
-      size_t n = A.size();
+      const size_t n = matrix.size();
       test_name = "system_" + std::to_string(n) + "x" + std::to_string(n);
 
-      // Добавляем суффикс для уникальности на основе типа матрицы
       if (n == 1) {
         test_name += "_scalar";
       } else if (n == 2) {
-        // Проверяем, диагональная ли матрица
-        if (A[0][1] == 0.0 && A[1][0] == 0.0) {
+        if (matrix[0][1] == 0.0 && matrix[1][0] == 0.0) {
           test_name += "_diagonal";
         } else {
           test_name += "_full";
         }
       } else if (n == 3) {
-        // Добавляем идентификатор для разных тестов 3x3
-        // Определяем тип матрицы по первому элементу
-        if (A[0][0] == 2.0 && A[0][1] == 0.0) {
-          test_name += "_diagonal";  // Тест 3
-        } else if (A[0][0] == 4.0 && A[0][1] == 1.0) {
-          test_name += "_spd";  // Тест 4
-        } else if (A[0][0] == 2.0 && A[0][1] == -1.0) {
-          test_name += "_tridiag";  // Тест 7
+        if (matrix[0][0] == 2.0 && matrix[0][1] == 0.0) {
+          test_name += "_diagonal";
+        } else if (matrix[0][0] == 4.0 && matrix[0][1] == 1.0) {
+          test_name += "_spd";
+        } else if (matrix[0][0] == 2.0 && matrix[0][1] == -1.0) {
+          test_name += "_tridiag";
         }
       } else if (n == 4) {
         test_name += "_identity";
@@ -59,43 +55,36 @@ class RemizovKRunFuncSystemLinearEquationsGradient : public ppc::util::BaseRunFu
   }
 
  private:
-  // Проверяем, что A*x ≈ b
-  bool CheckSolution(const std::vector<double> &x, const std::vector<std::vector<double>> &A,
-                     const std::vector<double> &b, double tolerance = 1e-4) {
-    if (A.empty() && x.empty() && b.empty()) {
+  static bool CheckSolution(const std::vector<double> &x, const std::vector<std::vector<double>> &matrix,
+                            const std::vector<double> &vector_b, double tolerance = 1e-4) {
+    if (matrix.empty() && x.empty() && vector_b.empty()) {
       return true;
     }
 
-    if (x.size() != b.size() || A.size() != b.size()) {
+    if (x.size() != vector_b.size() || matrix.size() != vector_b.size()) {
       return false;
     }
 
-    // Вычисляем невязку r = b - A*x
     double max_residual = 0.0;
-    for (size_t i = 0; i < A.size(); ++i) {
-      double Ax_i = 0.0;
-      for (size_t j = 0; j < A[i].size(); ++j) {
-        Ax_i += A[i][j] * x[j];
+    for (size_t i = 0; i < matrix.size(); ++i) {
+      double ax_i = 0.0;
+      for (size_t j = 0; j < matrix[i].size(); ++j) {
+        ax_i += matrix[i][j] * x[j];
       }
-      double residual = std::abs(b[i] - Ax_i);
-      if (residual > max_residual) {
-        max_residual = residual;
-      }
+      const double residual = std::abs(vector_b[i] - ax_i);
+      max_residual = std::max(residual, max_residual);
     }
 
-    // Вычисляем норму b
     double b_norm = 0.0;
-    for (double bi : b) {
+    for (double bi : vector_b) {
       b_norm += bi * bi;
     }
     b_norm = std::sqrt(b_norm);
 
     if (b_norm < 1e-12) {
-      // Если b близок к нулю, используем абсолютную погрешность
       return max_residual < tolerance;
     }
 
-    // Используем относительную погрешность
     return max_residual / b_norm < tolerance;
   }
 
@@ -107,10 +96,8 @@ class RemizovKRunFuncSystemLinearEquationsGradient : public ppc::util::BaseRunFu
   }
 
   bool CheckTestOutputData(OutType &output_data) final {
-    const auto &[A, b] = input_data_;
-
-    // Проверяем не решение, а то что A*x ≈ b
-    return CheckSolution(output_data, A, b, 1e-4);
+    const auto &[matrix, vector_b] = input_data_;
+    return CheckSolution(output_data, matrix, vector_b, 1e-4);
   }
 
   InType GetTestInputData() final {
@@ -124,73 +111,46 @@ class RemizovKRunFuncSystemLinearEquationsGradient : public ppc::util::BaseRunFu
 
 namespace {
 
-// Вспомогательная функция для создания диагональной матрицы
 std::vector<std::vector<double>> CreateDiagonalMatrix(int n, double value = 1.0) {
-  std::vector<std::vector<double>> A(n, std::vector<double>(n, 0.0));
+  std::vector<std::vector<double>> matrix(n, std::vector<double>(n, 0.0));
   for (int i = 0; i < n; ++i) {
-    A[i][i] = value;
+    matrix[i][i] = value;
   }
-  return A;
+  return matrix;
 }
 
 TEST_P(RemizovKRunFuncSystemLinearEquationsGradient, SolveLinearSystem) {
   ExecuteTest(GetParam());
 }
 
-// Упрощенные тесты с более реалистичными ожиданиями
 const std::array<TestType, 8> kTestParam = {
-    // Тест 1: Простейший случай 1x1
-    std::make_tuple(std::make_tuple(std::vector<std::vector<double>>{{5.0}},  // A
-                                    std::vector<double>{10.0}                 // b
-                                    ),
-                    std::vector<double>{2.0}  // ожидаемое x
-                    ),
+    std::make_tuple(std::make_tuple(std::vector<std::vector<double>>{{5.0}}, std::vector<double>{10.0}),
+                    std::vector<double>{2.0}),
 
-    // Тест 2: Диагональная матрица 2x2 (простая)
-    std::make_tuple(std::make_tuple(std::vector<std::vector<double>>{{2.0, 0.0}, {0.0, 3.0}},
-                                    std::vector<double>{2.0, 3.0}  // b = diag(A) * [1, 1]
-                                    ),
-                    std::vector<double>{1.0, 1.0}  // ожидаемое x = [1, 1]
-                    ),
-
-    // Тест 3: Диагональная матрица 3x3
     std::make_tuple(
-        std::make_tuple(CreateDiagonalMatrix(3, 2.0), std::vector<double>{2.0, 4.0, 6.0}  // b = 2 * [1, 2, 3]
-                        ),
-        std::vector<double>{1.0, 2.0, 3.0}  // ожидаемое x = [1, 2, 3]
-        ),
+        std::make_tuple(std::vector<std::vector<double>>{{2.0, 0.0}, {0.0, 3.0}}, std::vector<double>{2.0, 3.0}),
+        std::vector<double>{1.0, 1.0}),
 
-    // Тест 4: Симметричная положительно определенная матрица 3x3
+    std::make_tuple(std::make_tuple(CreateDiagonalMatrix(3, 2.0), std::vector<double>{2.0, 4.0, 6.0}),
+                    std::vector<double>{1.0, 2.0, 3.0}),
+
     std::make_tuple(std::make_tuple(std::vector<std::vector<double>>{{4.0, 1.0, 1.0}, {1.0, 3.0, 0.0}, {1.0, 0.0, 2.0}},
-                                    std::vector<double>{6.0, 4.0, 3.0}  // A * [1, 1, 1]
-                                    ),
-                    std::vector<double>{1.0, 1.0, 1.0}  // ожидаемое x = [1, 1, 1]
-                    ),
+                                    std::vector<double>{6.0, 4.0, 3.0}),
+                    std::vector<double>{1.0, 1.0, 1.0}),
 
-    // Тест 5: Единичная матрица 4x4
     std::make_tuple(std::make_tuple(CreateDiagonalMatrix(4, 1.0), std::vector<double>{1.0, 2.0, 3.0, 4.0}),
                     std::vector<double>{1.0, 2.0, 3.0, 4.0}),
 
-    // Тест 6: Матрица с большими числами 2x2
     std::make_tuple(std::make_tuple(std::vector<std::vector<double>>{{100.0, 10.0}, {10.0, 100.0}},
-                                    std::vector<double>{110.0, 110.0}  // A * [1, 1]
-                                    ),
-                    std::vector<double>{1.0, 1.0}  // ожидаемое x = [1, 1]
-                    ),
+                                    std::vector<double>{110.0, 110.0}),
+                    std::vector<double>{1.0, 1.0}),
 
-    // Тест 7: Трехдиагональная матрица (симметричная) 3x3
     std::make_tuple(
         std::make_tuple(std::vector<std::vector<double>>{{2.0, -1.0, 0.0}, {-1.0, 2.0, -1.0}, {0.0, -1.0, 2.0}},
                         std::vector<double>{1.0, 0.0, 1.0}),
-        std::vector<double>{0.75, 0.5, 0.75}  // точное решение
-        ),
+        std::vector<double>{0.75, 0.5, 0.75}),
 
-    // Тест 8: Пустая система (граничный случай)
-    std::make_tuple(std::make_tuple(std::vector<std::vector<double>>{},  // A
-                                    std::vector<double>{}                // b
-                                    ),
-                    std::vector<double>{}  // ожидаемое x
-                    )};
+    std::make_tuple(std::make_tuple(std::vector<std::vector<double>>{}, std::vector<double>{}), std::vector<double>{})};
 
 const auto kTestTasksList = std::tuple_cat(ppc::util::AddFuncTask<RemizovKSystemLinearEquationsGradientMPI, InType>(
                                                kTestParam, PPC_SETTINGS_remizov_k_systems_linear_equations_gradient),
