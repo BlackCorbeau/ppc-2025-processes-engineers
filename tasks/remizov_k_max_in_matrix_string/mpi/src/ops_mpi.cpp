@@ -2,9 +2,10 @@
 
 #include <mpi.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
-#include <stdexcept>
+#include <ranges>
 #include <utility>
 #include <vector>
 
@@ -14,45 +15,39 @@ namespace remizov_k_max_in_matrix_string {
 
 namespace {
 
-bool IsSystemCompatible(const std::vector<std::vector<double>> &A, const std::vector<double> &b) {
-  if (A.empty() && b.empty()) {
+bool IsSystemCompatible(const std::vector<std::vector<double>> &matrix, const std::vector<double> &vector_b) {
+  if (matrix.empty() && vector_b.empty()) {
     return true;
   }
 
-  if (A.empty() || b.empty()) {
+  if (matrix.empty() || vector_b.empty()) {
     return false;
   }
 
-  size_t n = A.size();
-  if (n != b.size()) {
+  const size_t n = matrix.size();
+  if (n != vector_b.size()) {
     return false;
   }
 
-  for (const auto &row : A) {
-    if (row.size() != n) {
-      return false;
-    }
-  }
-
-  return true;
+  return std::ranges::all_of(matrix, [n](const auto &row) { return row.size() == n; });
 }
 
 void BroadcastSystemData(int rank, InType &input_data) {
-  auto &[A, b] = input_data;
+  auto &[matrix, vector_b] = input_data;
 
   int is_empty = 0;
   if (rank == 0) {
-    is_empty = (A.empty() && b.empty()) ? 1 : 0;
+    is_empty = (matrix.empty() && vector_b.empty()) ? 1 : 0;
   }
   MPI_Bcast(&is_empty, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
-  if (is_empty) {
+  if (is_empty != 0) {
     return;
   }
 
   int n = 0;
   if (rank == 0) {
-    n = static_cast<int>(A.size());
+    n = static_cast<int>(matrix.size());
   }
   MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
@@ -61,18 +56,18 @@ void BroadcastSystemData(int rank, InType &input_data) {
   }
 
   if (rank != 0) {
-    A.resize(static_cast<size_t>(n));
-    for (auto &row : A) {
+    matrix.resize(static_cast<size_t>(n));
+    for (auto &row : matrix) {
       row.resize(static_cast<size_t>(n), 0.0);
     }
-    b.resize(static_cast<size_t>(n), 0.0);
+    vector_b.resize(static_cast<size_t>(n), 0.0);
   }
 
   for (int i = 0; i < n; ++i) {
-    MPI_Bcast(A[static_cast<size_t>(i)].data(), n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Bcast(matrix[static_cast<size_t>(i)].data(), n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
   }
 
-  MPI_Bcast(b.data(), n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  MPI_Bcast(vector_b.data(), n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 }
 
 std::vector<int> CalculateRowRange(int size_procs, int rank, int total_rows) {
@@ -105,128 +100,209 @@ std::vector<int> CalculateRowRange(int size_procs, int rank, int total_rows) {
   return {start, end};
 }
 
-std::vector<double> SolveSystemMPI(int rank, int size, const std::vector<std::vector<double>> &A,
-                                   const std::vector<double> &b) {
-  if (A.empty() && b.empty()) {
-    return std::vector<double>();
+void PerformCGIteration(int n, const std::vector<std::vector<double>> &matrix, std::vector<double> &x,
+                        std::vector<double> &r, std::vector<double> &p, std::vector<double> &ap, double &r_sq,
+                        int &iteration) {
+  std::ranges::fill(ap, 0.0);
+  for (int i = 0; i < n; ++i) {
+    for (int j = 0; j < n; ++j) {
+      ap[i] += matrix[i][j] * p[j];
+    }
   }
 
-  int n = static_cast<int>(b.size());
+  double p_ap = 0.0;
+  for (int i = 0; i < n; ++i) {
+    p_ap += p[i] * ap[i];
+  }
 
-  if (n <= 2 || size > n) {
-    std::vector<double> x(n, 0.0);
+  if (std::abs(p_ap) < 1e-15) {
+    p_ap = r_sq;
+  }
 
-    if (rank == 0) {
-      const double TOLERANCE = 1e-6;
-      const int MAX_ITERATIONS = n * 2;
+  const double alpha = r_sq / p_ap;
 
-      std::vector<double> r(n);
-      std::vector<double> p(n);
-      std::vector<double> Ap(n);
+  for (int i = 0; i < n; ++i) {
+    x[i] += alpha * p[i];
+    r[i] -= alpha * ap[i];
+  }
 
-      std::copy(b.begin(), b.end(), r.begin());
-      std::copy(r.begin(), r.end(), p.begin());
+  double r_sq_new = 0.0;
+  for (int i = 0; i < n; ++i) {
+    r_sq_new += r[i] * r[i];
+  }
 
-      double r_sq = 0.0;
-      for (int i = 0; i < n; ++i) {
-        r_sq += r[i] * r[i];
-      }
+  const double beta = r_sq_new / r_sq;
 
-      int iteration = 0;
+  for (int i = 0; i < n; ++i) {
+    p[i] = r[i] + (beta * p[i]);
+  }
 
-      while (iteration < MAX_ITERATIONS && std::sqrt(r_sq) > TOLERANCE) {
-        std::fill(Ap.begin(), Ap.end(), 0.0);
-        for (int i = 0; i < n; ++i) {
-          for (int j = 0; j < n; ++j) {
-            Ap[i] += A[i][j] * p[j];
-          }
-        }
+  r_sq = r_sq_new;
+  iteration++;
+}
 
-        double pAp = 0.0;
-        for (int i = 0; i < n; ++i) {
-          pAp += p[i] * Ap[i];
-        }
+std::vector<double> SolveSimpleSystem(int rank, int n, const std::vector<std::vector<double>> &matrix,
+                                      const std::vector<double> &vector_b) {
+  std::vector<double> x(n, 0.0);
 
-        if (std::abs(pAp) < 1e-15) {
-          break;
-        }
+  if (rank == 0) {
+    const double tolerance = 1e-6;
+    const int max_iterations = n * 2;
 
-        double alpha = r_sq / pAp;
+    std::vector<double> r(n);
+    std::vector<double> p(n);
+    std::vector<double> ap(n);
 
-        for (int i = 0; i < n; ++i) {
-          x[i] += alpha * p[i];
-          r[i] -= alpha * Ap[i];
-        }
+    std::ranges::copy(vector_b, r.begin());
+    std::ranges::copy(r, p.begin());
 
-        double r_sq_new = 0.0;
-        for (int i = 0; i < n; ++i) {
-          r_sq_new += r[i] * r[i];
-        }
-
-        double beta = r_sq_new / r_sq;
-
-        for (int i = 0; i < n; ++i) {
-          p[i] = r[i] + beta * p[i];
-        }
-
-        r_sq = r_sq_new;
-        iteration++;
-      }
+    double r_sq = 0.0;
+    for (int i = 0; i < n; ++i) {
+      r_sq += r[i] * r[i];
     }
 
-    MPI_Bcast(x.data(), n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    return x;
+    int iteration = 0;
+
+    while (iteration < max_iterations && std::sqrt(r_sq) > tolerance) {
+      PerformCGIteration(n, matrix, x, r, p, ap, r_sq, iteration);
+    }
   }
 
-  auto range = CalculateRowRange(size, rank, n);
-  int start_row = range[0];
-  int end_row = range[1];
+  MPI_Bcast(x.data(), n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  return x;
+}
+
+void CollectLocalData(int rank, int size, int n, const std::vector<int> &range, const std::vector<double> &local_data,
+                      std::vector<double> &global_data) {
+  const int start_row = range[0];
+  const int local_rows = range[1] - start_row + 1;
+
+  if (rank == 0) {
+    for (int i = 0; i < local_rows; ++i) {
+      global_data[start_row + i] = local_data[i];
+    }
+
+    for (int proc = 1; proc < size; ++proc) {
+      const auto proc_range = CalculateRowRange(size, proc, n);
+      const int proc_start = proc_range[0];
+      const int proc_rows = proc_range[1] - proc_start + 1;
+
+      std::vector<double> recv_buf(proc_rows);
+      MPI_Recv(recv_buf.data(), proc_rows, MPI_DOUBLE, proc, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+      for (int i = 0; i < proc_rows; ++i) {
+        global_data[proc_start + i] = recv_buf[i];
+      }
+    }
+  } else {
+    MPI_Send(local_data.data(), local_rows, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+  }
+}
+
+void UpdateGlobalP(int rank, int size, int n, const std::vector<int> &range, const std::vector<double> &local_p,
+                   std::vector<double> &global_p) {
+  CollectLocalData(rank, size, n, range, local_p, global_p);
+  MPI_Bcast(global_p.data(), n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+}
+
+void ComputeLocalMatrixVectorProduct(int start_row, int local_rows, int n,
+                                     const std::vector<std::vector<double>> &matrix,
+                                     const std::vector<double> &global_p, std::vector<double> &local_ap) {
+  std::ranges::fill(local_ap, 0.0);
+  for (int i = 0; i < local_rows; ++i) {
+    const int global_row = start_row + i;
+    for (int j = 0; j < n; ++j) {
+      local_ap[i] += matrix[global_row][j] * global_p[j];
+    }
+  }
+}
+
+void PerformMPICGIteration(int rank, int size, int start_row, int local_rows, int n,
+                           const std::vector<std::vector<double>> &matrix, const std::vector<int> &range,
+                           std::vector<double> &local_x, std::vector<double> &local_r, std::vector<double> &local_p,
+                           std::vector<double> &local_ap, std::vector<double> &global_p, double &global_r_sq,
+                           int &iteration) {
+  ComputeLocalMatrixVectorProduct(start_row, local_rows, n, matrix, global_p, local_ap);
+
+  double p_ap_local = 0.0;
+  for (int i = 0; i < local_rows; ++i) {
+    p_ap_local += local_p[i] * local_ap[i];
+  }
+
+  double p_ap_global = 0.0;
+  MPI_Allreduce(&p_ap_local, &p_ap_global, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+  if (std::abs(p_ap_global) < 1e-15) {
+    return;
+  }
+
+  const double alpha = global_r_sq / p_ap_global;
+
+  for (int i = 0; i < local_rows; ++i) {
+    local_x[i] += alpha * local_p[i];
+    local_r[i] -= alpha * local_ap[i];
+  }
+
+  double r_sq_new_local = 0.0;
+  for (int i = 0; i < local_rows; ++i) {
+    r_sq_new_local += local_r[i] * local_r[i];
+  }
+
+  double global_r_sq_new = 0.0;
+  MPI_Allreduce(&r_sq_new_local, &global_r_sq_new, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+  const double beta = global_r_sq_new / global_r_sq;
+
+  for (int i = 0; i < local_rows; ++i) {
+    local_p[i] = local_r[i] + (beta * local_p[i]);
+  }
+
+  UpdateGlobalP(rank, size, n, range, local_p, global_p);
+
+  global_r_sq = global_r_sq_new;
+  iteration++;
+}
+
+std::vector<double> SolveSystemMPI(int rank, int size, const std::vector<std::vector<double>> &matrix,
+                                   const std::vector<double> &vector_b) {
+  if (matrix.empty() && vector_b.empty()) {
+    return {};
+  }
+
+  const int n = static_cast<int>(vector_b.size());
+
+  if (n <= 2 || size > n) {
+    return SolveSimpleSystem(rank, n, matrix, vector_b);
+  }
+
+  const auto range = CalculateRowRange(size, rank, n);
+  const int start_row = range[0];
+  const int end_row = range[1];
 
   if (start_row < 0 || end_row < 0) {
-    return std::vector<double>();
+    return {};
   }
 
-  int local_rows = end_row - start_row + 1;
+  const int local_rows = end_row - start_row + 1;
 
-  const double TOLERANCE = 1e-6;
-  const int MAX_ITERATIONS = n * 2;
+  const double tolerance = 1e-6;
+  const int max_iterations = n * 2;
 
   std::vector<double> local_x(local_rows, 0.0);
   std::vector<double> local_r(local_rows);
   std::vector<double> local_p(local_rows);
-  std::vector<double> local_Ap(local_rows);
+  std::vector<double> local_ap(local_rows);
 
   for (int i = 0; i < local_rows; ++i) {
-    int global_idx = start_row + i;
-    local_r[i] = b[global_idx];
+    const int global_idx = start_row + i;
+    local_r[i] = vector_b[global_idx];
     local_p[i] = local_r[i];
   }
 
   std::vector<double> global_x(n, 0.0);
   std::vector<double> global_p(n);
 
-  if (rank == 0) {
-    for (int i = 0; i < local_rows; ++i) {
-      global_p[start_row + i] = local_p[i];
-    }
-
-    for (int proc = 1; proc < size; ++proc) {
-      auto proc_range = CalculateRowRange(size, proc, n);
-      int proc_start = proc_range[0];
-      int proc_rows = proc_range[1] - proc_start + 1;
-
-      std::vector<double> recv_buf(proc_rows);
-      MPI_Recv(recv_buf.data(), proc_rows, MPI_DOUBLE, proc, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-
-      for (int i = 0; i < proc_rows; ++i) {
-        global_p[proc_start + i] = recv_buf[i];
-      }
-    }
-  } else {
-    MPI_Send(local_p.data(), local_rows, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
-  }
-
-  MPI_Bcast(global_p.data(), n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  UpdateGlobalP(rank, size, n, range, local_p, global_p);
 
   double r_sq = 0.0;
   for (int i = 0; i < local_rows; ++i) {
@@ -238,96 +314,12 @@ std::vector<double> SolveSystemMPI(int rank, int size, const std::vector<std::ve
 
   int iteration = 0;
 
-  while (iteration < MAX_ITERATIONS && std::sqrt(global_r_sq) > TOLERANCE) {
-    std::fill(local_Ap.begin(), local_Ap.end(), 0.0);
-    for (int i = 0; i < local_rows; ++i) {
-      int global_row = start_row + i;
-      for (int j = 0; j < n; ++j) {
-        local_Ap[i] += A[global_row][j] * global_p[j];
-      }
-    }
-
-    double pAp_local = 0.0;
-    for (int i = 0; i < local_rows; ++i) {
-      pAp_local += local_p[i] * local_Ap[i];
-    }
-
-    double pAp_global = 0.0;
-    MPI_Allreduce(&pAp_local, &pAp_global, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-
-    if (std::abs(pAp_global) < 1e-15) {
-      break;
-    }
-
-    double alpha = global_r_sq / pAp_global;
-
-    for (int i = 0; i < local_rows; ++i) {
-      local_x[i] += alpha * local_p[i];
-      local_r[i] -= alpha * local_Ap[i];
-    }
-
-    double r_sq_new_local = 0.0;
-    for (int i = 0; i < local_rows; ++i) {
-      r_sq_new_local += local_r[i] * local_r[i];
-    }
-
-    double global_r_sq_new = 0.0;
-    MPI_Allreduce(&r_sq_new_local, &global_r_sq_new, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-
-    double beta = global_r_sq_new / global_r_sq;
-
-    for (int i = 0; i < local_rows; ++i) {
-      local_p[i] = local_r[i] + beta * local_p[i];
-    }
-
-    if (rank == 0) {
-      for (int i = 0; i < local_rows; ++i) {
-        global_p[start_row + i] = local_p[i];
-      }
-
-      for (int proc = 1; proc < size; ++proc) {
-        auto proc_range = CalculateRowRange(size, proc, n);
-        int proc_start = proc_range[0];
-        int proc_rows = proc_range[1] - proc_start + 1;
-
-        std::vector<double> recv_buf(proc_rows);
-        MPI_Recv(recv_buf.data(), proc_rows, MPI_DOUBLE, proc, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-
-        for (int i = 0; i < proc_rows; ++i) {
-          global_p[proc_start + i] = recv_buf[i];
-        }
-      }
-    } else {
-      MPI_Send(local_p.data(), local_rows, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
-    }
-
-    MPI_Bcast(global_p.data(), n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-
-    global_r_sq = global_r_sq_new;
-    iteration++;
+  while (iteration < max_iterations && std::sqrt(global_r_sq) > tolerance) {
+    PerformMPICGIteration(rank, size, start_row, local_rows, n, matrix, range, local_x, local_r, local_p, local_ap,
+                          global_p, global_r_sq, iteration);
   }
 
-  if (rank == 0) {
-    for (int i = 0; i < local_rows; ++i) {
-      global_x[start_row + i] = local_x[i];
-    }
-
-    for (int proc = 1; proc < size; ++proc) {
-      auto proc_range = CalculateRowRange(size, proc, n);
-      int proc_start = proc_range[0];
-      int proc_rows = proc_range[1] - proc_start + 1;
-
-      std::vector<double> recv_buf(proc_rows);
-      MPI_Recv(recv_buf.data(), proc_rows, MPI_DOUBLE, proc, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-
-      for (int i = 0; i < proc_rows; ++i) {
-        global_x[proc_start + i] = recv_buf[i];
-      }
-    }
-  } else {
-    MPI_Send(local_x.data(), local_rows, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
-  }
-
+  CollectLocalData(rank, size, n, range, local_x, global_x);
   MPI_Bcast(global_x.data(), n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
   return global_x;
@@ -348,14 +340,14 @@ bool RemizovKSystemLinearEquationsGradientMPI::ValidationImpl() {
   bool is_valid = true;
 
   if (rank == 0) {
-    const auto &[A, b] = GetInput();
+    const auto &[matrix, vector_b] = GetInput();
 
-    if (A.empty() && b.empty()) {
+    if (matrix.empty() && vector_b.empty()) {
       is_valid = true;
-    } else if (A.empty() || b.empty()) {
+    } else if (matrix.empty() || vector_b.empty()) {
       is_valid = false;
     } else {
-      is_valid = IsSystemCompatible(A, b);
+      is_valid = IsSystemCompatible(matrix, vector_b);
     }
   }
 
@@ -377,16 +369,16 @@ bool RemizovKSystemLinearEquationsGradientMPI::RunImpl() {
   MPI_Comm_size(MPI_COMM_WORLD, &size);
 
   auto &input_data = GetInput();
-  const auto &[A, b] = input_data;
+  const auto &[matrix, vector_b] = input_data;
 
-  if (A.empty() && b.empty()) {
+  if (matrix.empty() && vector_b.empty()) {
     GetOutput() = std::vector<double>();
     return true;
   }
 
   BroadcastSystemData(rank, input_data);
 
-  std::vector<double> solution = SolveSystemMPI(rank, size, A, b);
+  std::vector<double> solution = SolveSystemMPI(rank, size, matrix, vector_b);
 
   GetOutput() = solution;
 
