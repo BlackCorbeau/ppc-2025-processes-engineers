@@ -2,8 +2,8 @@
 
 #include <algorithm>
 #include <cmath>
-#include <limits>
-#include <stdexcept>
+#include <cstddef>
+#include <ranges>
 #include <vector>
 
 #include "remizov_k_systems_linear_equations_gradient/common/include/common.hpp"
@@ -17,23 +17,23 @@ RemizovKSystemLinearEquationsGradientSEQ::RemizovKSystemLinearEquationsGradientS
 }
 
 bool RemizovKSystemLinearEquationsGradientSEQ::ValidationImpl() {
-  const auto &[A, b] = GetInput();
+  const auto &[matrix, vector_b] = GetInput();
 
-  if (A.empty() && b.empty()) {
+  if (matrix.empty() && vector_b.empty()) {
     return true;
   }
 
-  if (A.empty() || b.empty()) {
+  if (matrix.empty() || vector_b.empty()) {
     return false;
   }
 
-  size_t n = A.size();
+  const size_t n = matrix.size();
 
-  if (A[0].size() != n) {
+  if (matrix[0].size() != n) {
     return false;
   }
 
-  if (b.size() != n) {
+  if (vector_b.size() != n) {
     return false;
   }
 
@@ -45,84 +45,102 @@ bool RemizovKSystemLinearEquationsGradientSEQ::PreProcessingImpl() {
   return true;
 }
 
-bool RemizovKSystemLinearEquationsGradientSEQ::RunImpl() {
-  const auto &[A, b] = GetInput();
+namespace {
 
-  if (A.empty() && b.empty()) {
+double ComputeDotProduct(const std::vector<double> &a, const std::vector<double> &b) {
+  double result = 0.0;
+  for (size_t i = 0; i < a.size(); ++i) {
+    result += a[i] * b[i];
+  }
+  return result;
+}
+
+void ComputeMatrixVectorProduct(const std::vector<std::vector<double>> &matrix, const std::vector<double> &x,
+                                std::vector<double> &result) {
+  const size_t n = matrix.size();
+  std::ranges::fill(result, 0.0);
+
+  for (size_t i = 0; i < n; ++i) {
+    for (size_t j = 0; j < n; ++j) {
+      result[i] += matrix[i][j] * x[j];
+    }
+  }
+}
+
+void UpdateSolutionAndResidual(double alpha, std::vector<double> &x, std::vector<double> &r,
+                               const std::vector<double> &p, const std::vector<double> &ap) {
+  for (size_t i = 0; i < x.size(); ++i) {
+    x[i] += alpha * p[i];
+    r[i] -= alpha * ap[i];
+  }
+}
+
+void UpdateSearchDirection(double beta, std::vector<double> &p, const std::vector<double> &r) {
+  for (size_t i = 0; i < p.size(); ++i) {
+    p[i] = r[i] + (beta * p[i]);
+  }
+}
+
+}  // namespace
+
+bool RemizovKSystemLinearEquationsGradientSEQ::RunImpl() {
+  const auto &[matrix, vector_b] = GetInput();
+
+  if (matrix.empty() && vector_b.empty()) {
     GetOutput() = std::vector<double>();
     return true;
   }
 
-  size_t n = A.size();
+  const size_t n = matrix.size();
 
   if (n == 0) {
     GetOutput() = std::vector<double>();
     return true;
   }
 
-  const double TOLERANCE = 1e-6;
-  const int MAX_ITERATIONS = n * 2;
+  const double tolerance = 1e-6;
+  const auto max_iterations = static_cast<int>(n * 2);
 
   std::vector<double> x(n, 0.0);
   std::vector<double> r(n);
   std::vector<double> p(n);
-  std::vector<double> Ap(n);
+  std::vector<double> ap(n);
 
-  std::copy(b.begin(), b.end(), r.begin());
+  std::ranges::copy(vector_b, r.begin());
+  std::ranges::copy(r, p.begin());
 
-  std::copy(r.begin(), r.end(), p.begin());
+  double r_sq = ComputeDotProduct(r, r);
+  const double initial_r_norm = std::sqrt(r_sq);
 
-  double r_sq = 0.0;
-  for (size_t i = 0; i < n; ++i) {
-    r_sq += r[i] * r[i];
-  }
-  double initial_r_norm = std::sqrt(r_sq);
-
-  if (initial_r_norm < TOLERANCE) {
+  if (initial_r_norm < tolerance) {
     GetOutput() = x;
     return true;
   }
 
   int iteration = 0;
 
-  while (iteration < MAX_ITERATIONS) {
-    std::fill(Ap.begin(), Ap.end(), 0.0);
-    for (size_t i = 0; i < n; ++i) {
-      for (size_t j = 0; j < n; ++j) {
-        Ap[i] += A[i][j] * p[j];
-      }
+  while (iteration < max_iterations) {
+    ComputeMatrixVectorProduct(matrix, p, ap);
+
+    double p_ap = ComputeDotProduct(p, ap);
+
+    if (std::abs(p_ap) < 1e-15) {
+      p_ap = r_sq;
     }
 
-    double pAp = 0.0;
-    for (size_t i = 0; i < n; ++i) {
-      pAp += p[i] * Ap[i];
-    }
+    const double alpha = r_sq / p_ap;
 
-    if (std::abs(pAp) < 1e-15) {
-      pAp = r_sq;
-    }
+    UpdateSolutionAndResidual(alpha, x, r, p, ap);
 
-    double alpha = r_sq / pAp;
+    double r_sq_new = ComputeDotProduct(r, r);
 
-    for (size_t i = 0; i < n; ++i) {
-      x[i] += alpha * p[i];
-      r[i] -= alpha * Ap[i];
-    }
-
-    double r_sq_new = 0.0;
-    for (size_t i = 0; i < n; ++i) {
-      r_sq_new += r[i] * r[i];
-    }
-
-    if (std::sqrt(r_sq_new) < TOLERANCE) {
+    if (std::sqrt(r_sq_new) < tolerance) {
       break;
     }
 
-    double beta = r_sq_new / r_sq;
+    const double beta = r_sq_new / r_sq;
 
-    for (size_t i = 0; i < n; ++i) {
-      p[i] = r[i] + beta * p[i];
-    }
+    UpdateSearchDirection(beta, p, r);
 
     r_sq = r_sq_new;
     iteration++;
