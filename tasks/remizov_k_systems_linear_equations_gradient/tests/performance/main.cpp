@@ -14,7 +14,7 @@
 namespace remizov_k_systems_linear_equations_gradient {
 
 class RemizovKSystemLinearEquationsGradientPerfTest : public ppc::util::BaseRunPerfTests<InType, OutType> {
-  const int kTestSize_ = 1000;
+  const int kTestSize_ = 10000;
 
   InType test_input_;
   OutType test_expected_;
