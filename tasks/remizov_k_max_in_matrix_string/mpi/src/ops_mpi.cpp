@@ -18,7 +18,6 @@ const double kDefaultTolerance = 1e-10;
 const int kDefaultMaxIterations = 1000;
 
 bool IsSystemCompatible(const std::vector<std::vector<double>> &A, const std::vector<double> &b) {
-
   if (A.empty() && b.empty()) {
     return true;
   }
@@ -111,7 +110,6 @@ std::vector<int> CalculateRowRange(int size_procs, int rank, int total_rows) {
 
 std::vector<double> SolveSystemMPI(int rank, int size, const std::vector<std::vector<double>> &A,
                                    const std::vector<double> &b) {
-
   if (A.empty() && b.empty()) {
     return std::vector<double>();
   }
@@ -140,7 +138,6 @@ std::vector<double> SolveSystemMPI(int rank, int size, const std::vector<std::ve
       int iteration = 0;
 
       while (iteration < MAX_ITERATIONS && std::sqrt(r_sq) > TOLERANCE) {
-
         std::fill(Ap.begin(), Ap.end(), 0.0);
         for (int i = 0; i < n; ++i) {
           for (int j = 0; j < n; ++j) {
@@ -158,7 +155,6 @@ std::vector<double> SolveSystemMPI(int rank, int size, const std::vector<std::ve
         }
 
         double alpha = r_sq / pAp;
-
 
         for (int i = 0; i < n; ++i) {
           x[i] += alpha * p[i];
