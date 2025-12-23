@@ -7,9 +7,9 @@
 
 namespace remizov_k_max_in_matrix_string {
 
-using InType = std::vector<std::vector<int>>;
-using OutType = std::vector<int>;
-using TestType = std::tuple<std::vector<std::vector<int>>, std::vector<int>>;
+using InType = std::tuple<std::vector<std::vector<double>>, std::vector<double>>;
+using OutType = std::vector<double>;
+using TestType = std::tuple<std::tuple<std::vector<std::vector<double>>, std::vector<double>>, std::vector<double>>;
 using BaseTask = ppc::task::Task<InType, OutType>;
 
 }  // namespace remizov_k_max_in_matrix_string
