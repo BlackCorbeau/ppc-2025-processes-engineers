@@ -14,17 +14,10 @@
 namespace remizov_k_systems_linear_equations_gradient {
 
 class RemizovKSystemLinearEquationsGradientPerfTest : public ppc::util::BaseRunPerfTests<InType, OutType> {
-  const int kSmallSize_ = 100;
-  const int kMediumSize_ = 500;
-  const int kLargeSize_ = 1000;
+  const int kTestSize_ = 1000;
 
-  InType small_input_;
-  InType medium_input_;
-  InType large_input_;
-
-  OutType small_expected_;
-  OutType medium_expected_;
-  OutType large_expected_;
+  InType test_input_;
+  OutType test_expected_;
 
   static std::vector<std::vector<double>> CreateSPDMatrix(int n) {
     std::vector<std::vector<double>> matrix(n, std::vector<double>(n, 0.0));
@@ -61,21 +54,11 @@ class RemizovKSystemLinearEquationsGradientPerfTest : public ppc::util::BaseRunP
   }
 
   void SetUp() override {
-    auto a_small = CreateSPDMatrix(kSmallSize_);
-    auto b_small = CreateVector(kSmallSize_);
-    small_input_ = std::make_tuple(a_small, b_small);
+    auto matrix = CreateSPDMatrix(kTestSize_);
+    auto vector_b = CreateVector(kTestSize_);
+    test_input_ = std::make_tuple(matrix, vector_b);
 
-    auto a_medium = CreateSPDMatrix(kMediumSize_);
-    auto b_medium = CreateVector(kMediumSize_);
-    medium_input_ = std::make_tuple(a_medium, b_medium);
-
-    auto a_large = CreateSPDMatrix(kLargeSize_);
-    auto b_large = CreateVector(kLargeSize_);
-    large_input_ = std::make_tuple(a_large, b_large);
-
-    small_expected_ = std::vector<double>(kSmallSize_, 0.5);
-    medium_expected_ = std::vector<double>(kMediumSize_, 0.5);
-    large_expected_ = std::vector<double>(kLargeSize_, 0.5);
+    test_expected_ = std::vector<double>(kTestSize_, 0.5);
   }
 
   bool CheckTestOutputData(OutType &output_data) final {
@@ -88,11 +71,11 @@ class RemizovKSystemLinearEquationsGradientPerfTest : public ppc::util::BaseRunP
   }
 
   InType GetTestInputData() final {
-    return large_input_;
+    return test_input_;
   }
 
   InType GetCurrentTestInput() {
-    return large_input_;
+    return test_input_;
   }
 };
 
