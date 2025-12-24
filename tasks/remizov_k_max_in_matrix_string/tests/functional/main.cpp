@@ -1,8 +1,6 @@
 #include <gtest/gtest.h>
 
-#include <algorithm>
 #include <array>
-#include <cmath>
 #include <cstddef>
 #include <string>
 #include <tuple>
@@ -16,38 +14,18 @@
 
 namespace remizov_k_max_in_matrix_string {
 
-class RemizovKRunFuncSystemLinearEquationsGradient : public ppc::util::BaseRunFuncTests<InType, OutType, TestType> {
+class RemizovKRunFuncMaxInMatrixString : public ppc::util::BaseRunFuncTests<InType, OutType, TestType> {
  public:
   static std::string PrintTestParam(const TestType &test_param) {
-    const auto &[input, expected] = test_param;
-    const auto &[matrix, vector_b] = input;
+    const auto &input_matrix = std::get<0>(test_param);
+    const auto &expected_output = std::get<1>(test_param);
 
-    std::string test_name;
-
-    if (matrix.empty()) {
-      test_name = "empty_system";
-    } else {
-      const size_t n = matrix.size();
-      test_name = "system_" + std::to_string(n) + "x" + std::to_string(n);
-
-      if (n == 1) {
-        test_name += "_scalar";
-      } else if (n == 2) {
-        if (matrix[0][1] == 0.0 && matrix[1][0] == 0.0) {
-          test_name += "_diagonal";
-        } else {
-          test_name += "_full";
-        }
-      } else if (n == 3) {
-        if (matrix[0][0] == 2.0 && matrix[0][1] == 0.0) {
-          test_name += "_diagonal";
-        } else if (matrix[0][0] == 4.0 && matrix[0][1] == 1.0) {
-          test_name += "_spd";
-        } else if (matrix[0][0] == 2.0 && matrix[0][1] == -1.0) {
-          test_name += "_tridiag";
-        }
-      } else if (n == 4) {
-        test_name += "_identity";
+    std::string test_name = "matrix_" + std::to_string(input_matrix.size()) + "x" +
+                            (input_matrix.empty() ? "0" : std::to_string(input_matrix[0].size()));
+    if (!expected_output.empty()) {
+      test_name += "_maxes";
+      for (size_t i = 0; i < expected_output.size(); ++i) {
+        test_name += "_" + FormatNumber(expected_output[i]);
       }
     }
 
@@ -55,37 +33,11 @@ class RemizovKRunFuncSystemLinearEquationsGradient : public ppc::util::BaseRunFu
   }
 
  private:
-  static bool CheckSolution(const std::vector<double> &x, const std::vector<std::vector<double>> &matrix,
-                            const std::vector<double> &vector_b, double tolerance = 1e-4) {
-    if (matrix.empty() && x.empty() && vector_b.empty()) {
-      return true;
+  static std::string FormatNumber(int num) {
+    if (num >= 0) {
+      return std::to_string(num);
     }
-
-    if (x.size() != vector_b.size() || matrix.size() != vector_b.size()) {
-      return false;
-    }
-
-    double max_residual = 0.0;
-    for (size_t i = 0; i < matrix.size(); ++i) {
-      double ax_i = 0.0;
-      for (size_t j = 0; j < matrix[i].size(); ++j) {
-        ax_i += matrix[i][j] * x[j];
-      }
-      const double residual = std::abs(vector_b[i] - ax_i);
-      max_residual = std::max(residual, max_residual);
-    }
-
-    double b_norm = 0.0;
-    for (double bi : vector_b) {
-      b_norm += bi * bi;
-    }
-    b_norm = std::sqrt(b_norm);
-
-    if (b_norm < 1e-12) {
-      return max_residual < tolerance;
-    }
-
-    return max_residual / b_norm < tolerance;
+    return "neg" + std::to_string(-num);
   }
 
  protected:
@@ -96,8 +48,17 @@ class RemizovKRunFuncSystemLinearEquationsGradient : public ppc::util::BaseRunFu
   }
 
   bool CheckTestOutputData(OutType &output_data) final {
-    const auto &[matrix, vector_b] = input_data_;
-    return CheckSolution(output_data, matrix, vector_b, 1e-4);
+    if (output_data.size() != expected_output_.size()) {
+      return false;
+    }
+
+    for (size_t i = 0; i < output_data.size(); ++i) {
+      if (output_data[i] != expected_output_[i]) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   InType GetTestInputData() final {
@@ -111,58 +72,33 @@ class RemizovKRunFuncSystemLinearEquationsGradient : public ppc::util::BaseRunFu
 
 namespace {
 
-std::vector<std::vector<double>> CreateDiagonalMatrix(int n, double value = 1.0) {
-  std::vector<std::vector<double>> matrix(n, std::vector<double>(n, 0.0));
-  for (int i = 0; i < n; ++i) {
-    matrix[i][i] = value;
-  }
-  return matrix;
-}
-
-TEST_P(RemizovKRunFuncSystemLinearEquationsGradient, SolveLinearSystem) {
+TEST_P(RemizovKRunFuncMaxInMatrixString, FindMaxInEachRow) {
   ExecuteTest(GetParam());
 }
 
-const std::array<TestType, 8> kTestParam = {
-    std::make_tuple(std::make_tuple(std::vector<std::vector<double>>{{5.0}}, std::vector<double>{10.0}),
-                    std::vector<double>{2.0}),
+const std::array<TestType, 6> kTestParam = {
+    std::make_tuple(std::vector<std::vector<int>>{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}, std::vector<int>{3, 6, 9}),
 
-    std::make_tuple(
-        std::make_tuple(std::vector<std::vector<double>>{{2.0, 0.0}, {0.0, 3.0}}, std::vector<double>{2.0, 3.0}),
-        std::vector<double>{1.0, 1.0}),
+    std::make_tuple(std::vector<std::vector<int>>{{-1, -5, -3}, {-9, -2, -7}}, std::vector<int>{-1, -2}),
 
-    std::make_tuple(std::make_tuple(CreateDiagonalMatrix(3, 2.0), std::vector<double>{2.0, 4.0, 6.0}),
-                    std::vector<double>{1.0, 2.0, 3.0}),
+    std::make_tuple(std::vector<std::vector<int>>{{5, 8, 2, 10, 1}}, std::vector<int>{10}),
 
-    std::make_tuple(std::make_tuple(std::vector<std::vector<double>>{{4.0, 1.0, 1.0}, {1.0, 3.0, 0.0}, {1.0, 0.0, 2.0}},
-                                    std::vector<double>{6.0, 4.0, 3.0}),
-                    std::vector<double>{1.0, 1.0, 1.0}),
+    std::make_tuple(std::vector<std::vector<int>>{{7, 7, 7}, {7, 7, 7}}, std::vector<int>{7, 7}),
 
-    std::make_tuple(std::make_tuple(CreateDiagonalMatrix(4, 1.0), std::vector<double>{1.0, 2.0, 3.0, 4.0}),
-                    std::vector<double>{1.0, 2.0, 3.0, 4.0}),
+    std::make_tuple(std::vector<std::vector<int>>{{1, 5, 1}, {3, 3, 4}}, std::vector<int>{5, 4}),
 
-    std::make_tuple(std::make_tuple(std::vector<std::vector<double>>{{100.0, 10.0}, {10.0, 100.0}},
-                                    std::vector<double>{110.0, 110.0}),
-                    std::vector<double>{1.0, 1.0}),
+    std::make_tuple(std::vector<std::vector<int>>{{42}}, std::vector<int>{42})};
 
-    std::make_tuple(
-        std::make_tuple(std::vector<std::vector<double>>{{2.0, -1.0, 0.0}, {-1.0, 2.0, -1.0}, {0.0, -1.0, 2.0}},
-                        std::vector<double>{1.0, 0.0, 1.0}),
-        std::vector<double>{0.75, 0.5, 0.75}),
-
-    std::make_tuple(std::make_tuple(std::vector<std::vector<double>>{}, std::vector<double>{}), std::vector<double>{})};
-
-const auto kTestTasksList = std::tuple_cat(ppc::util::AddFuncTask<RemizovKSystemLinearEquationsGradientMPI, InType>(
-                                               kTestParam, PPC_SETTINGS_remizov_k_systems_linear_equations_gradient),
-                                           ppc::util::AddFuncTask<RemizovKSystemLinearEquationsGradientSEQ, InType>(
-                                               kTestParam, PPC_SETTINGS_remizov_k_systems_linear_equations_gradient));
+const auto kTestTasksList = std::tuple_cat(ppc::util::AddFuncTask<RemizovKMaxInMatrixStringMPI, InType>(
+                                               kTestParam, PPC_SETTINGS_remizov_k_max_in_matrix_string),
+                                           ppc::util::AddFuncTask<RemizovKMaxInMatrixStringSEQ, InType>(
+                                               kTestParam, PPC_SETTINGS_remizov_k_max_in_matrix_string));
 
 const auto kGtestValues = ppc::util::ExpandToValues(kTestTasksList);
 
-const auto kPerfTestName =
-    RemizovKRunFuncSystemLinearEquationsGradient::PrintFuncTestName<RemizovKRunFuncSystemLinearEquationsGradient>;
+const auto kPerfTestName = RemizovKRunFuncMaxInMatrixString::PrintFuncTestName<RemizovKRunFuncMaxInMatrixString>;
 
-INSTANTIATE_TEST_SUITE_P(LinearSystemTests, RemizovKRunFuncSystemLinearEquationsGradient, kGtestValues, kPerfTestName);
+INSTANTIATE_TEST_SUITE_P(MatrixMaxTests, RemizovKRunFuncMaxInMatrixString, kGtestValues, kPerfTestName);
 
 }  // namespace
 
