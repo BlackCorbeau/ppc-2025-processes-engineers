@@ -245,4 +245,4 @@ void PerformMPICGIteration(int rank, int size, int start_row, int local_rows, in
   global_r_sq = global_r_sq_new;
   iteration++;
 }
-```
+``` 
